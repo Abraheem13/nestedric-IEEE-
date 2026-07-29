@@ -1,0 +1,10 @@
+name: cross-dataset
+family: cross-dataset
+source: [coloran, commag, tractor]
+n_environments: 9
+order: fixed
+seed: 0
+description: |
+  Hardest stream: environments drawn from different datasets, so the shift spans
+  testbed, radio conditions and instrumentation. This is the covariate-shift
+  analogue of the LOCO protocol in the path-loss work.

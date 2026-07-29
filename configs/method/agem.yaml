@@ -1,0 +1,3 @@
+method: agem
+_base_: replay.yaml
+ref_batch_size: 256

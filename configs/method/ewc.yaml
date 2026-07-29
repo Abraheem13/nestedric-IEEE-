@@ -1,0 +1,4 @@
+method: ewc
+_base_: finetune.yaml
+lambda_ewc: 100.0      # swept over {1, 10, 100, 1000} on the validation stream
+fisher_samples: 2000

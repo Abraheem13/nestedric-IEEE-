@@ -1,0 +1,15 @@
+# Day 10 ablations, run only on the two most informative streams.
+name: ablation
+streams:
+  - configs/stream/traffic_shift.yaml
+  - configs/stream/cross_dataset.yaml
+model: configs/model/base.yaml
+method: nestedric
+seeds: [0, 1, 2]
+grid:
+  n_levels: [1, 2, 3]
+  period_ratio: [1, 4, 16, 32, 64, 128]
+  memory.capacity: [64, 256, 512, 2048]
+  self_modifying: [true, false]
+  deep_optimizer.enabled: [true, false]
+output_dir: results/runs/ablation

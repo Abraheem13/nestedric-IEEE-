@@ -1,0 +1,5 @@
+name: tractor
+raw_dir: data/raw/tractor
+# ~2.83 GB, 17 O-RAN KPIs, 447 minutes of real 5G traffic across traffic classes.
+context_axes: [traffic_profile, n_ue]
+notes: "Primary source of realistic traffic-class non-stationarity."

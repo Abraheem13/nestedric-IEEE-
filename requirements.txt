@@ -1,0 +1,11 @@
+# Pinned at first successful environment build (Day 1). Regenerate with `pip freeze`.
+torch>=2.2
+numpy>=1.26
+pandas>=2.1
+pyarrow>=14.0
+scipy>=1.11
+scikit-learn>=1.4
+pyyaml>=6.0
+matplotlib>=3.8
+tqdm>=4.66
+rich>=13.7

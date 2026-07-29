@@ -1,0 +1,9 @@
+name: traffic-shift
+family: traffic-shift
+source: [tractor]
+n_environments: 8
+order: fixed
+seed: 0
+description: |
+  Environments differ by traffic class / application mix. Expected to be the
+  strongest single-dataset drift signal.

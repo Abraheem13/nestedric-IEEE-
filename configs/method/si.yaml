@@ -1,0 +1,4 @@
+method: si
+_base_: finetune.yaml
+c: 0.1
+xi: 1.0e-3

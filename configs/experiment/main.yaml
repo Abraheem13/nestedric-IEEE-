@@ -1,0 +1,17 @@
+# Main benchmark: all methods x all streams x 5 seeds.
+name: main
+streams:
+  - configs/stream/slice_shift.yaml
+  - configs/stream/traffic_shift.yaml
+  - configs/stream/sched_shift.yaml
+  - configs/stream/cross_dataset.yaml
+  - configs/stream/cyclic.yaml
+model: configs/model/base.yaml
+methods: [finetune, ewc, si, replay, agem, lwf, bilevel, titans, nestedric, joint]
+seeds: [0, 1, 2, 3, 4]
+metrics: [avg_performance, bwt, fwt, forgetting, adaptation_latency, footprint]
+statistics:
+  unit_of_analysis: stream     # NOT the sample: environments are correlated
+  bootstrap: 10000
+  correction: holm-bonferroni
+output_dir: results/runs/main

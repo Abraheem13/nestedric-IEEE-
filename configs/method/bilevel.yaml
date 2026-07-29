@@ -1,0 +1,5 @@
+method: bilevel
+_base_: finetune.yaml
+# Two-timescale bilevel baseline in the spirit of Sun et al., IEEE TSP 70:1900-1917, 2022.
+inner_steps: 1
+outer_lr: 1.0e-4

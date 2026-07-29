@@ -1,0 +1,14 @@
+# Backbone shared by EVERY method so comparisons are like for like.
+encoder:
+  type: gru            # gru | tcn | transformer  (ablated on Day 10)
+  hidden: 128
+  n_layers: 2
+  dropout: 0.1
+heads:
+  prediction:
+    out_dim: 2         # dl_thpt, latency proxy
+  policy:
+    n_actions: 3       # scheduling policy choice (xApp control task)
+input:
+  window: 32
+  kpi_columns: null    # null = all canonical KPI columns

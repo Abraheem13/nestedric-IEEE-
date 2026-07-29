@@ -1,0 +1,13 @@
+# Contingency (Day 10): controlled non-stationarity if public traces drift too little.
+name: drift_sweep
+stream: configs/stream/traffic_shift.yaml
+model: configs/model/base.yaml
+methods: [finetune, ewc, replay, titans, nestedric]
+seeds: [0, 1, 2]
+drift:
+  kind: traffic_scale
+  magnitudes: [0.0, 0.25, 0.5, 1.0, 2.0]
+output_dir: results/runs/drift_sweep
+note: |
+  Doubles as the empirical test of the frequency-separation bound: it traces
+  |BWT| against drift rate at several separation ratios.

@@ -1,0 +1,30 @@
+# data + results are large and regenerable
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+results/runs/*
+!results/runs/.gitkeep
+*.parquet
+*.ckpt
+*.pt
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# notebooks
+.ipynb_checkpoints/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/

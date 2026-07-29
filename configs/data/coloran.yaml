@@ -1,0 +1,8 @@
+name: coloran
+raw_dir: data/raw/colosseum-oran-coloran-dataset
+# 7 base stations, 42 UEs, Rome scenario; eMBB / URLLC / MTC slices.
+# Context axes usable as environment boundaries:
+context_axes: [slice_type, sched_policy, traffic_profile]
+notes: |
+  TODO(Day 1): confirm the exact KPI column names in the released CSVs and pin
+  the commit hash used, so the benchmark is reproducible.

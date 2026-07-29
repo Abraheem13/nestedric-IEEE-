@@ -1,0 +1,4 @@
+name: commag
+raw_dir: data/raw/colosseum-oran-commag-dataset
+context_axes: [sched_policy, slice_type]
+notes: "Companion Colosseum trace set; used mainly for the cross-dataset stream."

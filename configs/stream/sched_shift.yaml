@@ -1,0 +1,7 @@
+name: sched-shift
+family: sched-shift
+source: [coloran, commag]
+n_environments: 6
+order: fixed
+seed: 0
+description: "Scheduling policy changes between environments (control-relevant shift)."

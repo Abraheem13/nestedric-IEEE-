@@ -1,0 +1,4 @@
+method: joint
+_base_: finetune.yaml
+# Oracle upper bound: trains on the union of all environments.
+epochs_total: 10

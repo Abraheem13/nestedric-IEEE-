@@ -1,0 +1,8 @@
+name: cyclic
+family: cyclic
+source: [coloran, tractor]
+n_environments: 12
+order: cyclic         # environments recur, so retention is measured, not inferred
+repeat: 2
+seed: 0
+description: "Recurring environments; isolates genuine retention from lucky re-fitting."

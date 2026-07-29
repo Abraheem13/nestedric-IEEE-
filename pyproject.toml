@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nestedric"
+version = "0.1.0.dev0"
+description = "Multi-timescale Nested Learning for forgetting-robust O-RAN RIC control"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "Abraheem Rashid", email = "2546393@brunel.ac.uk" },
+]
+keywords = ["O-RAN", "continual learning", "nested learning", "6G", "RIC", "mobile computing"]
+classifiers = [
+  "Programming Language :: Python :: 3.10",
+  "License :: OSI Approved :: Apache Software License",
+  "Intended Audience :: Science/Research",
+]
+dependencies = [
+  "torch>=2.2",
+  "numpy>=1.26",
+  "pandas>=2.1",
+  "pyarrow>=14.0",
+  "scipy>=1.11",
+  "scikit-learn>=1.4",
+  "pyyaml>=6.0",
+  "matplotlib>=3.8",
+  "tqdm>=4.66",
+  "rich>=13.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-cov", "ruff>=0.4", "black>=24.3", "mypy>=1.9", "pre-commit"]
+sim = ["ns3-gym; sys_platform == 'linux'"]
+
+[project.scripts]
+nestedric = "nestedric.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "D"]
+ignore = ["D203", "D213"]
+
+[tool.black]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true

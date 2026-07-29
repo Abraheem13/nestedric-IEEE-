@@ -1,0 +1,4 @@
+method: finetune
+optimizer: {type: adam, lr: 1.0e-3, weight_decay: 0.0}
+epochs_per_env: 3
+batch_size: 256

@@ -1,0 +1,11 @@
+# 5-minute sanity run: 2 tiny environments, 1 seed, CPU-friendly.
+name: smoke
+stream: configs/stream/slice_shift.yaml
+model: configs/model/base.yaml
+methods: [finetune, nestedric]
+seeds: [0]
+overrides:
+  stream.n_environments: 2
+  method.epochs_per_env: 1
+  stream.env_min_samples: 200
+output_dir: results/runs/smoke

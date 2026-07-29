@@ -1,0 +1,21 @@
+# Materialise every raw dataset into the canonical KPI parquet schema.
+# Run: nestedric prepare --config configs/data/all.yaml
+
+output_dir: data/processed
+window: 32          # KPI timesteps per training example
+stride: 8
+resample_ms: 250    # harmonise the differing native sampling rates
+
+datasets:
+  - name: coloran
+    enabled: true
+    raw_dir: data/raw/colosseum-oran-coloran-dataset
+  - name: commag
+    enabled: true
+    raw_dir: data/raw/colosseum-oran-commag-dataset
+  - name: tractor
+    enabled: true
+    raw_dir: data/raw/tractor
+  - name: scope
+    enabled: false   # optional 4th source, generated locally (contingency only)
+    raw_dir: data/raw/scope

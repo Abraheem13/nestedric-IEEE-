@@ -1,0 +1,23 @@
+method: nestedric
+_base_: finetune.yaml
+
+# --- nested optimisation levels -------------------------------------------------
+# Periods are anchored to the O-RAN control loops:
+#   level 0 -> near-RT RIC (10 ms - 1 s), level 1 -> non-RT RIC (> 1 s), level 2 -> SMO.
+n_levels: 2
+periods: [1, 32]          # tau_f, tau_s  (separation ratio = 32)
+self_modifying: true
+
+# --- continuum memory system ----------------------------------------------------
+memory:
+  capacity: 512           # byte-matched against replay buffer_size
+  dim: 128
+  read_topk: 8
+
+# --- deep optimizer -------------------------------------------------------------
+deep_optimizer:
+  enabled: true
+  memory_depth: 2
+
+# Ablation axes (Day 10): n_levels in {1,2,3}; periods ratio in {1,4,16,32,64,128};
+# memory.capacity in {64,256,512,2048}; self_modifying in {true,false}.
