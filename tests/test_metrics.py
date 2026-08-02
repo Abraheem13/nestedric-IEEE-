@@ -61,3 +61,29 @@ def test_single_environment_has_no_backward_transfer():
 def test_non_square_matrix_raises():
     with pytest.raises(ValueError, match="square"):
         backward_transfer(np.zeros((2, 3)))
+
+
+def test_evaluator_sanity_flags_a_diverged_run():
+    """A results file should say whether it can be believed."""
+    import numpy as np
+
+    from nestedric.eval.evaluator import ContinualEvaluator
+
+    class _Stream:
+        environments = [type("E", (), {"env_id": "a"}), type("E", (), {"env_id": "b"})]
+
+        def __iter__(self):
+            return iter(self.environments)
+
+        def __len__(self):
+            return 2
+
+    ev = ContinualEvaluator(_Stream(), {})
+    ev.R = np.array([[-60.0, -60.0], [-0.1, -0.1]])  # the sched-shift-commag shape
+    flags = ev.sanity()
+    assert flags["positive_bwt"] is True
+    assert flags["implausible_performance"] is True
+    assert flags["trustworthy"] is False
+
+    ev.R = np.array([[-0.02, -0.5], [-0.06, -0.34]])  # a healthy run
+    assert ev.sanity()["trustworthy"] is True

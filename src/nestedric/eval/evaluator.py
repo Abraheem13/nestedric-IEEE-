@@ -55,11 +55,30 @@ class ContinualEvaluator:
             row[env.env_id] = scores
         return row
 
+    def sanity(self) -> dict:
+        """Checks a reader would otherwise have to perform by eye.
+
+        A results file should say whether it is trustworthy. These flags are written
+        into every run so a broken sweep announces itself instead of being caught by
+        someone squinting at a summary table.
+        """
+        from nestedric.eval import metrics as M
+
+        bwt = M.backward_transfer(self.R)
+        finite = bool(np.isfinite(self.R).all())
+        return {
+            "all_finite": finite,
+            "positive_bwt": bool(bwt > 0.01),
+            "implausible_performance": bool(np.nanmin(self.R) < -50.0),
+            "trustworthy": bool(finite and bwt <= 0.01 and np.nanmin(self.R) >= -50.0),
+        }
+
     def finalise(self) -> dict:
         """All metrics plus the raw matrices for the results artefact."""
         from nestedric.eval import metrics as M
 
         return {
+            "sanity": self.sanity(),
             "R": self.R.tolist(),
             "R_mse": self.R_mse.tolist(),
             "R_accuracy": self.R_acc.tolist(),

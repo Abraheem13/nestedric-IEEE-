@@ -14,6 +14,15 @@ import time
 import numpy as np
 
 
+class Divergence(RuntimeError):
+    """Training loss went non-finite or implausibly large."""
+
+
+#: A standardised-MSE loss above this is not slow learning, it is divergence. With
+#: targets standardised to roughly unit variance, predicting the mean scores ~1.0.
+MAX_PLAUSIBLE_LOSS = 100.0
+
+
 class ContinualTrainer:
     """Iterate the stream, call the Method hooks, drive the ContinualEvaluator."""
 
@@ -54,7 +63,19 @@ class ContinualTrainer:
                 batches = self._joint_batches() if joint else loader
                 for batch in batches:
                     logs = self.method.observe(batch, step)
-                    losses.append(logs["loss"])
+                    loss = logs["loss"]
+                    if not np.isfinite(loss) or loss > MAX_PLAUSIBLE_LOSS:
+                        # Fail here rather than write a results.json full of numbers
+                        # that then have to be recognised as nonsense by eye. A
+                        # diverged run once reported BWT = +5.90 and was summarised as
+                        # "FORGETS" before anyone noticed.
+                        raise Divergence(
+                            f"loss {loss:.4g} at step {step} on environment "
+                            f"{env.env_id!r} (limit {MAX_PLAUSIBLE_LOSS}). Targets are "
+                            "standardised, so predicting the mean scores about 1.0. "
+                            "Check scaling before adjusting the learning rate."
+                        )
+                    losses.append(loss)
                     step += 1
 
             self.method.end_environment(env, i)
