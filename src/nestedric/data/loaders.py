@@ -21,6 +21,7 @@ the same error the Day 1 sanitisation policy exists to prevent.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,7 +29,7 @@ import numpy as np
 import pandas as pd
 
 from nestedric.data import colosseum as C
-from nestedric.data.schema import FEATURE_COLUMNS, TARGET_COLUMNS
+from nestedric.data.schema import FEATURE_COLUMNS, LOG1P_COLUMNS, TARGET_COLUMNS
 from nestedric.data.stream import Environment
 
 
@@ -63,6 +64,22 @@ class Normaliser:
         }
 
 
+def apply_log1p(block: np.ndarray, columns: Sequence[str]) -> np.ndarray:
+    """log1p the heavy-tailed non-negative KPIs, in place on a copy.
+
+    Applied before standardisation and before the constants are fitted, so the fitted
+    mean and std describe the transformed quantity -- fitting on raw values and then
+    transforming would make the constants meaningless.
+    """
+    out = np.array(block, dtype="float64", copy=True)
+    for i, name in enumerate(columns):
+        if name in LOG1P_COLUMNS:
+            col = out[:, i]
+            with np.errstate(invalid="ignore"):
+                out[:, i] = np.log1p(np.clip(col, 0.0, None))
+    return out
+
+
 def fit_normaliser(
     envs: list[Environment],
     processed_dir: str | Path,
@@ -86,7 +103,7 @@ def fit_normaliser(
 
     for env in envs:
         frame = _load_env_frame(env, processed_dir, list(columns), env.train_traces)
-        block = frame.to_numpy(dtype="float64", na_value=np.nan)
+        block = apply_log1p(frame.to_numpy(dtype="float64", na_value=np.nan), columns)
         mask = ~np.isnan(block)
         n += mask.sum(axis=0)
         s1 += np.nansum(block, axis=0)
@@ -203,18 +220,19 @@ def build_windows(
     tidx: list[np.ndarray] = []
 
     for order, (_trace, part) in enumerate(frame.groupby("trace_id", observed=True, sort=True)):
-        block = part[cols].to_numpy(dtype="float64", na_value=np.nan)
-        if len(block) < window + horizon + 1:
+        raw_block = part[cols].to_numpy(dtype="float64", na_value=np.nan)
+        if len(raw_block) < window + horizon + 1:
             continue
+        block = apply_log1p(raw_block, cols)
 
         missing = np.isnan(block)
         standardised = normaliser.transform(np.where(missing, normaliser.mean, block))
         missing_rate = missing.mean(axis=1, keepdims=True).astype("float32")
         channels = np.concatenate([standardised, missing_rate], axis=1)
 
-        # Actions come from the RAW granted-PRB counter, not the standardised one: a
-        # relative change is only meaningful in the original units.
-        raw_granted = np.nan_to_num(block[:, granted_pos], nan=0.0)
+        # Actions come from the RAW counter, before log1p: a relative change is only
+        # meaningful in the original units.
+        raw_granted = np.nan_to_num(raw_block[:, granted_pos], nan=0.0)
         actions = derive_actions(raw_granted)
 
         last = len(block) - window - horizon

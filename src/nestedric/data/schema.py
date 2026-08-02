@@ -219,6 +219,31 @@ VALID_RANGES: dict[str, tuple[float, float]] = {
 #: a constant column contributes nothing and wastes normalisation capacity.
 CONSTANT_COLUMNS: tuple[str, ...] = ("ul_rssi", "tx_errors_dl_pct")
 
+#: Strictly non-negative KPIs spanning many orders of magnitude, log1p-transformed
+#: before standardisation.
+#:
+#: Buffer occupancy runs from 0 to ~1e9 bytes and packet and sample counts to 1e6.
+#: Standardising those linearly against constants fitted on one source environment
+#: produced inputs at 128 source-sigma on COMMAG -- with the p99 also at 128, so the
+#: entire distribution had moved, not a tail -- and since dl_buffer_bytes is also a
+#: prediction target, squared errors near 1.6e4 diverged the run outright.
+#:
+#: log1p is the right transform rather than clipping: it is monotone, invertible, and
+#: preserves the ordering and relative differences that matter for a buffer level, where
+#: 1 KB vs 10 KB is the same operational distinction as 1 MB vs 10 MB. Clipping would
+#: instead fabricate a ceiling the data does not have -- the same objection as the Day 1
+#: mask-never-clip policy.
+LOG1P_COLUMNS: tuple[str, ...] = (
+    "dl_buffer_bytes",
+    "ul_buffer_bytes",
+    "tx_pkts_dl",
+    "rx_pkts_ul",
+    "dl_n_samples",
+    "ul_n_samples",
+    "sum_requested_prbs",
+    "sum_granted_prbs",
+)
+
 #: Columns whose *missingness* identifies the source dataset, measured on the full
 #: corpus by ``scripts/diagnose_quality.py`` (the Day 2 gate).
 #:

@@ -162,3 +162,44 @@ def test_empty_trace_list_returns_empty_arrays(corpus):  # noqa: F811
 def test_fit_requires_a_source_environment():
     with pytest.raises(ValueError, match="at least one source"):
         fit_normaliser([], "data/processed")
+
+
+def test_heavy_tailed_features_are_log_transformed_before_standardising():
+    """A buffer spanning 0..1e9 must not arrive at the model at 128 source-sigma.
+
+    sched-shift-commag diverged because dl_buffer_bytes -- also a prediction target --
+    stood at 127.9 standardised units, with its p99 at 127.7, i.e. the whole
+    distribution had moved rather than a tail. log1p compresses the range while staying
+    monotone and invertible.
+    """
+    from nestedric.data.loaders import apply_log1p
+    from nestedric.data.schema import LOG1P_COLUMNS
+
+    cols = ("dl_buffer_bytes", "dl_cqi")
+    raw = np.array([[0.0, 7.0], [1e3, 8.0], [1e6, 9.0], [1e9, 10.0]])
+    out = apply_log1p(raw, cols)
+
+    assert "dl_buffer_bytes" in LOG1P_COLUMNS
+    assert out[:, 0].max() < 25  # log1p(1e9) ~ 20.7
+    assert np.all(np.diff(out[:, 0]) > 0)  # monotone: ordering preserved
+    assert np.array_equal(out[:, 1], raw[:, 1])  # bounded-index KPI untouched
+
+
+def test_log1p_leaves_missing_values_missing():
+    from nestedric.data.loaders import apply_log1p
+
+    raw = np.array([[np.nan], [10.0]])
+    out = apply_log1p(raw, ("dl_buffer_bytes",))
+    assert np.isnan(out[0, 0])
+    assert out[1, 0] == pytest.approx(np.log1p(10.0))
+
+
+def test_standardised_range_stays_sane_across_environments(corpus):  # noqa: F811
+    """Guardrail on the actual pipeline: no environment may exceed 50 source-sigma."""
+    stream = _stream(corpus)
+    norm = fit_normaliser([stream[0]], corpus)
+    for env in stream:
+        ws = build_windows(env, corpus, norm, env.train_traces, WINDOW, STRIDE)
+        if len(ws):
+            assert np.abs(ws.x[:, :, :-1]).max() < 50.0
+            assert np.abs(ws.y).max() < 50.0
