@@ -16,6 +16,11 @@ from nestedric.data.schema import ALL_COLUMNS, RAW_SLICE_COLUMNS
 IMSI_A = 1010123456049
 IMSI_B = 1010123456050
 
+COMMAG_PATH_STR = Path(
+    "data/raw/colosseum-oran-commag-dataset/slice_traffic/rome_static_close/tr0/exp1/"
+    "bs1/slices_bs1/1010123456007_metrics.csv"
+)
+
 
 def _write_metrics_csv(path: Path, n: int, imsi: int, slice_id: int = 1, t0: int = 1618103191351):
     """Write one slice-metrics CSV with the verified 31-column header, spacers included."""
@@ -54,22 +59,50 @@ def coloran_root(tmp_path: Path) -> Path:
     return root
 
 
-def test_shard_key_groups_by_scenario_and_tr():
-    a = C.parse_path(
-        Path("x/rome_static_medium/sched0/tr7/exp3/bs5/slices_bs5/1010123456049_metrics.csv"),
+def _coloran_meta(sched: int, tr: str = "tr7", imsi: int = IMSI_A):
+    return C.parse_path(
+        Path(f"x/rome_static_medium/sched{sched}/{tr}/exp3/bs5/slices_bs5/{imsi}_metrics.csv"),
         "coloran",
     )
-    b = C.parse_path(
-        Path("x/rome_static_medium/sched2/tr7/exp1/bs1/slices_bs1/1010123456050_metrics.csv"),
-        "coloran",
+
+
+def test_shard_key_separates_scheduling_policy_and_tr_config():
+    assert _coloran_meta(0).shard_key != _coloran_meta(2).shard_key
+    assert _coloran_meta(0, "tr7").shard_key != _coloran_meta(0, "tr8").shard_key
+
+
+def test_trace_id_distinguishes_scheduling_policy():
+    """ColO-RAN logs the same UE under sched0/1/2; the split key must tell them apart.
+
+    Without the sched component these are one id, so a sched-shift environment cut by
+    policy would put the same UE's data in two environments.
+    """
+    ids = {_coloran_meta(s).trace_id for s in (0, 1, 2)}
+    assert len(ids) == 3
+
+
+def test_commag_trace_id_has_no_sched_component():
+    m = C.parse_path(COMMAG_PATH_STR, "commag")
+    assert m.sched_dir is None
+    assert "sched" not in m.trace_id
+
+
+def test_prepare_rejects_colliding_trace_ids(tmp_path: Path, monkeypatch):
+    """If a future path change reintroduces a collision, preparation must fail loudly."""
+    root = tmp_path / "colosseum-oran-coloran-dataset"
+    for sched in (0, 1):
+        d = root / "rome_static_medium" / f"sched{sched}" / "tr0" / "exp1" / "bs5" / "slices_bs5"
+        _write_metrics_csv(d / f"{IMSI_A}_metrics.csv", 200, IMSI_A)
+
+    # Simulate the old key by dropping the sched component again.
+    monkeypatch.setattr(
+        C.TraceMeta, "shard_key", property(lambda self: f"{self.scenario}__{self.tr_config}")
     )
-    c = C.parse_path(
-        Path("x/rome_static_medium/sched0/tr8/exp3/bs5/slices_bs5/1010123456049_metrics.csv"),
-        "coloran",
+    monkeypatch.setattr(
+        C.TraceMeta, "trace_id", property(lambda self: f"{self.scenario}:{self.imsi}")
     )
-    # Scheduling policy does not split shards; tr config does.
-    assert a.shard_key == b.shard_key
-    assert a.shard_key != c.shard_key
+    with pytest.raises(C.TraceIdCollision, match="two files"):
+        C.prepare(root, tmp_path / "processed", dataset="coloran", min_rows=100)
 
 
 def test_prepare_writes_one_shard_per_tr_config(coloran_root: Path, tmp_path: Path):
@@ -77,7 +110,10 @@ def test_prepare_writes_one_shard_per_tr_config(coloran_root: Path, tmp_path: Pa
     manifest_path, report = C.prepare(coloran_root, out, dataset="coloran", min_rows=100)
 
     shards = sorted(p.stem for p in (out / "coloran").glob("*.parquet"))
-    assert shards == ["traffic__rome_static_medium__tr0", "traffic__rome_static_medium__tr7"]
+    assert shards == [
+        "traffic__rome_static_medium__tr0__sched0",
+        "traffic__rome_static_medium__tr7__sched0",
+    ]
 
     manifest = pd.read_csv(manifest_path)
     assert len(manifest) == 2
@@ -105,11 +141,13 @@ def test_shards_roundtrip_through_load_shards(coloran_root: Path, tmp_path: Path
     assert len(df) == 700
     assert df.trace_id.nunique() == 4
 
-    one = C.load_shards(out, "coloran", ["traffic__rome_static_medium__tr0"])
+    one = C.load_shards(out, "coloran", ["traffic__rome_static_medium__tr0__sched0"])
     assert len(one) == 350
     assert set(one.tr_config) == {"tr0"}
 
-    cols = C.load_shards(out, "coloran", ["traffic__rome_static_medium__tr0"], columns=["dl_mcs"])
+    cols = C.load_shards(
+        out, "coloran", ["traffic__rome_static_medium__tr0__sched0"], columns=["dl_mcs"]
+    )
     assert list(cols.columns) == ["dl_mcs"]
 
 

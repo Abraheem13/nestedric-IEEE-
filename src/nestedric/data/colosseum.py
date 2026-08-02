@@ -35,6 +35,11 @@ from nestedric.data.schema import (
     sanitise,
 )
 
+
+class TraceIdCollision(RuntimeError):
+    """Two source files map to one ``trace_id`` -- the split key is not unique."""
+
+
 COLORAN_REPO = "https://github.com/wineslab/colosseum-oran-coloran-dataset"
 COMMAG_REPO = "https://github.com/wineslab/colosseum-oran-commag-dataset"
 LICENCE = "GPL-3.0"
@@ -66,36 +71,45 @@ class TraceMeta:
     exp_id: str
     bs_id: int
     imsi: int
+    #: ColO-RAN nests runs under ``sched{0,1,2}``; COMMAG has no such directory.
+    sched_dir: int | None = None
 
     @property
     def trace_id(self) -> str:
-        """Stable unique identifier for this trace, used as the split key."""
+        """Stable unique identifier for this trace, used as the split key.
+
+        ``sched_dir`` is part of the key and must stay part of it. ColO-RAN records the
+        same (scenario, tr, exp, bs, IMSI) combination once per scheduling policy, so
+        without it three physically distinct traces collide onto one id. The damage is
+        not cosmetic: the trace is the split key and the unit of analysis, so a
+        sched-shift environment cut by policy would put one UE's data in two different
+        environments, which is precisely the correlation the fold-level protocol exists
+        to keep out.
+        """
+        sched = "" if self.sched_dir is None else f":sched{self.sched_dir}"
         return (
             f"{self.dataset}:{self.scenario}:{self.slice_assignment}:"
-            f"{self.tr_config}:{self.exp_id}:bs{self.bs_id}:{self.imsi}"
+            f"{self.tr_config}{sched}:{self.exp_id}:bs{self.bs_id}:{self.imsi}"
         )
 
     @property
     def shard_key(self) -> str:
         """Grouping key for one parquet shard.
 
-        Preparation writes one shard per ``(scenario, slice_assignment, tr_config)``
-        rather than one file per dataset. Two reasons, in order of importance:
+        Preparation writes one shard per ``(slice_assignment, scenario, tr_config)``,
+        plus scheduling policy where the dataset separates it, rather than one file per
+        dataset. Two reasons, in order of importance:
 
         1. The full corpus does not fit in memory on the target node (4 vCPU / 16 GB).
            Concatenating ~35.5M rows x 35 columns needs roughly 5 GB for the frame plus
            a full copy during ``pd.concat``. Sharding caps peak usage at one shard:
-           ~1.3M rows for ColO-RAN, ~275k for COMMAG.
+           ~420k rows for ColO-RAN, ~275k for COMMAG.
         2. Environments are defined over exactly these context axes, so the stream
            builder can select environments by reading the manifest and then opening
            only the shards it needs -- never the whole corpus.
-
-        Note that ColO-RAN's three scheduling policies land in the *same* shard: the
-        policy lives in a path component not carried on TraceMeta (it is read from the
-        ``scheduling_policy`` column instead), and sched-shift environments are cut
-        within a shard rather than across shards.
         """
-        return f"{self.slice_assignment}__{self.scenario}__{self.tr_config}"
+        sched = "" if self.sched_dir is None else f"__sched{self.sched_dir}"
+        return f"{self.slice_assignment}__{self.scenario}__{self.tr_config}{sched}"
 
     def with_(self, **kw) -> TraceMeta:
         """Return a copy with fields replaced (used by tests)."""
@@ -127,6 +141,7 @@ def parse_path(path: Path, dataset: str) -> TraceMeta | None:
             exp_id=m.group("exp"),
             bs_id=int(m.group("bs")),
             imsi=int(m.group("imsi")),
+            sched_dir=int(m.group("sched")),
         )
 
     if dataset == "commag":
@@ -258,12 +273,22 @@ def prepare_shard(
     frames: list[pd.DataFrame] = []
     masked_total: dict[str, int] = {}
     skipped_short = 0
+    seen_ids: dict[str, Path] = {}
 
     for path, meta in items:
         raw = read_metrics_csv(path)
         if len(raw) < min_rows:
             skipped_short += 1
             continue
+        if meta.trace_id in seen_ids:
+            # Two files claiming one trace_id means the id is missing a path component
+            # that actually distinguishes runs. Silently, this merges distinct traces
+            # and lets one appear in two environments; loudly, it is a two-line fix.
+            raise TraceIdCollision(
+                f"trace_id {meta.trace_id!r} produced by two files:\n"
+                f"  {seen_ids[meta.trace_id]}\n  {path}"
+            )
+        seen_ids[meta.trace_id] = path
         frame, masked = to_canonical(raw, meta, report=verbose)
         frames.append(frame)
         for k, v in masked.items():
