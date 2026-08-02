@@ -1,6 +1,6 @@
 name: sched-shift
 family: sched-shift
-source: [coloran, commag]
+source: [coloran]   # single testbed: see the note below
 n_environments: 6
 order: fixed
 seed: 0
@@ -10,4 +10,15 @@ eval_fraction: 0.2
 max_traces_per_env: 240      # environments run to millions of rows; 300 runs on one L4
 trace_quality_column: sum_requested_prbs
 trace_max_missing: 0.20      # COMMAG's worst decile carries 86% of the missingness
-description: "Scheduling policy changes between environments (control-relevant shift)."
+description: |
+  Scheduling policy changes between environments, within ONE testbed.
+
+  Day 4 measured this stream with source [coloran, commag], which put a
+  ColO-RAN -> COMMAG boundary in the middle of it. That boundary carried a transfer
+  gap of 87.6 against 0.47-4.11 for every other transition, and the stream's -0.0428
+  BWT came from it rather than from the scheduler. Within-testbed controls show
+  scheduling policy alone produces BWT -0.0021 (ColO-RAN) and +0.0006 (COMMAG):
+  no forgetting.
+
+  The stream is kept, single-testbed, and reported as a NEGATIVE result. Cross-testbed
+  shift belongs to cross_dataset.yaml, which is where it is measured.

@@ -1,0 +1,16 @@
+# The two streams that still need a clean measurement.
+#
+# cross-dataset carries the shift that actually forgets (testbed / PRB budget) and has
+# never been run; cyclic measures whether retention is real by revisiting environments.
+name: gate2
+streams:
+  - configs/stream/cross_dataset.yaml
+  - configs/stream/cyclic.yaml
+model: configs/model/base.yaml
+methods: [finetune, joint, replay]
+seeds: [0, 1]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+output_dir: results/runs/gate2
