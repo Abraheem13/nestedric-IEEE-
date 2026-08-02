@@ -1,0 +1,21 @@
+# Day 4 critical gate: is there measurable forgetting on these traces at all?
+#
+# If finetune shows negligible |BWT| on every stream there is no phenomenon to improve
+# on, and the contingency in docs/PLAN.md applies -- pull drift injection forward and
+# reframe around how much drift multi-timescale nesting needs before it pays.
+#
+# Only the methods needed to answer that question: the forgetting reference, the oracle
+# that bounds what the backbone can express, and two cheap baselines for scale.
+name: gate
+streams:
+  - configs/stream/radio_shift.yaml
+  - configs/stream/sched_shift.yaml
+  - configs/stream/slice_shift.yaml
+model: configs/model/base.yaml
+methods: [finetune, joint, ewc, replay]
+seeds: [0, 1]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+output_dir: results/runs/gate

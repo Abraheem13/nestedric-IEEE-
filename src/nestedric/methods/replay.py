@@ -15,7 +15,7 @@ import numpy as np
 import torch
 
 from nestedric.methods import register
-from nestedric.methods.base import SgdMethod
+from nestedric.methods.base import SgdMethod, capacity_from_budget, memory_budget_bytes
 
 
 @register("replay")
@@ -24,7 +24,11 @@ class Replay(SgdMethod):
 
     def __init__(self, model, cfg, device: str = "cpu") -> None:
         super().__init__(model, cfg, device)
-        self.capacity = int(cfg.get("buffer_size", 5000))
+        # Capacity is derived from the shared byte budget, not configured directly:
+        # a window here is 32 x 19 floats, so "5000 windows" and a "512-slot memory"
+        # differ by ~45x in bytes while reading as comparable numbers in a config.
+        self.budget = memory_budget_bytes(cfg)
+        self.capacity = int(cfg.get("buffer_size", 0)) or None
         self.replay_ratio = float(cfg.get("replay_ratio", 0.5))
         self.rng = np.random.default_rng(int(cfg.get("seed", 0)))
         self._x: torch.Tensor | None = None
@@ -35,6 +39,13 @@ class Replay(SgdMethod):
 
     def _init_storage(self, batch) -> None:
         x, y, a = batch
+        if self.capacity is None:
+            per_item = (
+                x[0].numel() * x.element_size()
+                + y[0].numel() * y.element_size()
+                + a[0].numel() * a.element_size()
+            )
+            self.capacity = capacity_from_budget(self.budget, per_item)
         self._x = torch.zeros((self.capacity, *x.shape[1:]), dtype=x.dtype)
         self._y = torch.zeros((self.capacity, *y.shape[1:]), dtype=y.dtype)
         self._a = torch.zeros((self.capacity, *a.shape[1:]), dtype=a.dtype)

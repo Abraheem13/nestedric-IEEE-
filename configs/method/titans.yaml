@@ -1,5 +1,5 @@
 method: titans
 _base_: finetune.yaml
 # Single-timescale test-time memory: the frequency-separation ablation of NestedRIC.
-memory_capacity: 512
+memory_budget_mb: 4.0
 update_period: 1

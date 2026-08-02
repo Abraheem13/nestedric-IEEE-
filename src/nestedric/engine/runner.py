@@ -90,6 +90,16 @@ def run_experiment(cfg: dict, out_dir: Path) -> Path:
 
     t0 = time.time()
     results = trainer.run()
+
+    # Near-RT feasibility (design rule 6): measured on a real batch from the last
+    # environment, at batch size 1, which is the shape of an inference in a control loop.
+    from nestedric.eval.footprint import measure_footprint, near_rt_feasible
+
+    probe = next(iter(eval_loaders[stream[-1].env_id]), None)
+    if probe is not None:
+        fp = measure_footprint(method, probe, device=device)
+        results["footprint"] = fp
+        results["near_rt_feasible"] = near_rt_feasible(fp)
     results.update(
         {
             "method": cfg["method_name"],

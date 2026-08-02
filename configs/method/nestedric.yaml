@@ -10,7 +10,7 @@ self_modifying: true
 
 # --- continuum memory system ----------------------------------------------------
 memory:
-  capacity: 512           # byte-matched against replay buffer_size
+  budget_mb: 4.0          # byte-matched against replay and titans
   dim: 128
   read_topk: 8
 

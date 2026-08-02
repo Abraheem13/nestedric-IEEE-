@@ -1,5 +1,5 @@
 method: replay
 _base_: finetune.yaml
-buffer_size: 5000      # matched in bytes to the NestedRIC memory for fairness
+memory_budget_mb: 4.0   # shared budget; capacity is derived, see methods/base.py
 sampling: reservoir
 replay_ratio: 0.5

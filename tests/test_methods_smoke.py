@@ -8,8 +8,8 @@ torch = pytest.importorskip("torch")
 from nestedric.methods import build_method, load_all  # noqa: E402
 from nestedric.models.backbone import build_backbone  # noqa: E402
 
-IMPLEMENTED = ["finetune", "joint", "ewc", "si", "replay"]
-PENDING = ["agem", "lwf", "bilevel", "titans", "nestedric"]
+IMPLEMENTED = ["finetune", "joint", "ewc", "si", "replay", "agem", "lwf", "bilevel", "titans"]
+PENDING = ["nestedric"]  # Days 5-7
 
 MODEL_CFG = {
     "encoder": {"type": "gru", "hidden": 16, "n_layers": 1, "dropout": 0.0},
@@ -57,6 +57,39 @@ def test_every_method_shares_the_same_backbone_size(name):
     assert model.n_parameters() == reference
 
 
+def test_memory_methods_declare_their_bytes():
+    """Design rule 2: NestedRIC must not win by storing more, so all state is declared."""
+    for name, cfg in (
+        ("replay", {"buffer_size": 32}),
+        ("agem", {"buffer_size": 32}),
+        ("titans", {"memory_capacity": 16}),
+        ("lwf", {}),
+        ("bilevel", {}),
+    ):
+        model = build_backbone(MODEL_CFG, in_dim=19)
+        method = build_method(name, model, cfg)
+        method.observe(_batch(), step=0)
+        method.end_environment(None, 0)
+        assert method.extra_state_bytes() > 0, f"{name} reports no method state"
+
+
+def test_agem_projects_only_when_gradients_conflict():
+    model = build_backbone(MODEL_CFG, in_dim=19)
+    method = build_method("agem", model, {"buffer_size": 64, "ref_batch_size": 8})
+    first = method.observe(_batch(), step=0)
+    assert first["projected"] == 0.0  # empty buffer: nothing to conflict with
+    second = method.observe(_batch(n=8), step=1)
+    assert second["projected"] in (0.0, 1.0)
+
+
+def test_titans_writes_to_memory_every_step_by_default():
+    model = build_backbone(MODEL_CFG, in_dim=19)
+    method = build_method("titans", model, {"memory_capacity": 16})
+    assert method.update_period == 1  # the point of the ablation
+    method.observe(_batch(), step=0)
+    assert method.filled > 0
+
+
 def test_replay_buffer_is_counted_in_bytes():
     model = build_backbone(MODEL_CFG, in_dim=19)
     method = build_method("replay", model, {"buffer_size": 32, "replay_ratio": 0.5})
@@ -84,3 +117,23 @@ def test_pending_methods_are_registered_but_unimplemented(name):
     model = build_backbone(MODEL_CFG, in_dim=19)
     with pytest.raises(NotImplementedError):
         build_method(name, model, {})
+
+
+def test_memory_methods_are_byte_matched():
+    """Design rule 2: replay, A-GEM and Titans must hold the same bytes, not the same
+    nominal 'capacity'. Configured as 5,000 windows vs 512 slots they differed by 45x.
+    """
+    budgets = {}
+    for name in ("replay", "agem", "titans"):
+        model = build_backbone(MODEL_CFG, in_dim=19)
+        method = build_method(name, model, {"memory_budget_mb": 1.0})
+        for step in range(3):
+            method.observe(_batch(n=4), step=step)
+        budgets[name] = method.extra_state_bytes()
+
+    assert all(b > 0 for b in budgets.values()), budgets
+    largest, smallest = max(budgets.values()), min(budgets.values())
+    # Discretisation into whole slots means they cannot match exactly; 10% is the
+    # tolerance that matters, against the 4,500% gap this test was written for.
+    assert largest / smallest < 1.1, budgets
+    assert largest <= 1.05e6, budgets

@@ -1,6 +1,6 @@
 .PHONY: setup data test lint fmt smoke main ablate figures clean
 
-PY ?= python3
+PY ?= PYTHONPATH=src python3
 
 setup:
 	$(PY) -m pip install -e ".[dev]"
@@ -33,3 +33,7 @@ figures:
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache **/__pycache__
+
+gate:
+	$(PY) -m nestedric.cli train --config configs/experiment/gate.yaml
+	$(PY) scripts/report_gate.py --dir results/runs/gate

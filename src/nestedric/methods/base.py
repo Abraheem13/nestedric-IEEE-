@@ -37,6 +37,23 @@ class Method(Protocol):
         """Parameter count, memory bytes and per-step latency -- for the RIC budget check."""
 
 
+#: Shared memory budget for every method that stores anything (design rule 2). Methods
+#: size their own structures to fit it, rather than each config naming a capacity in its
+#: own units -- 5,000 replayed windows and a 512-slot key-value memory sound comparable
+#: and differ by a factor of 45 in bytes.
+DEFAULT_MEMORY_BUDGET_MB = 4.0
+
+
+def memory_budget_bytes(cfg: dict) -> int:
+    """Bytes this method may spend on stored state, from the shared budget."""
+    return int(float(cfg.get("memory_budget_mb", DEFAULT_MEMORY_BUDGET_MB)) * 1e6)
+
+
+def capacity_from_budget(budget_bytes: int, bytes_per_item: int, minimum: int = 1) -> int:
+    """How many items of *bytes_per_item* fit the budget."""
+    return max(minimum, int(budget_bytes // max(bytes_per_item, 1)))
+
+
 def build_optimizer(params, cfg: dict) -> torch.optim.Optimizer:
     """Construct the optimiser named in a method config.
 
