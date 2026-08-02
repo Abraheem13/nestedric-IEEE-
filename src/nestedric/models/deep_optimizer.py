@@ -1,4 +1,7 @@
-"""Deep optimisers: gradient-based updates re-read as associative memory.\n\nImplements the NL reinterpretation in which momentum/Adam are memory modules compressing gradient history, plus deeper-memory variants.
+"""Deep optimisers: gradient-based updates re-read as associative memory.
+
+Implements the NL reinterpretation in which momentum and Adam are memory modules
+compressing gradient history, plus deeper-memory variants.
 
 Status: STUB -- implemented on Day 6 of the 15-day plan (see docs/PLAN.md).
 """

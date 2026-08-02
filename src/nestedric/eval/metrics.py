@@ -1,4 +1,6 @@
-"""Continual-learning metrics computed from the T x T evaluation matrix R, where\nR[i, j] is performance on environment j after training through environment i.
+"""Continual-learning metrics over the T x T evaluation matrix.
+
+R[i, j] is performance on environment j after training through environment i.
 
 Status: STUB -- implemented on Day 4 of the 15-day plan (see docs/PLAN.md).
 """

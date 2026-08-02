@@ -1,4 +1,8 @@
-"""Statistical treatment.\n\nEnvironments within a dataset are correlated, so the unit of analysis is the\nstream/fold, not the sample. Provides paired bootstrap CIs over folds, Holm-\nBonferroni correction across methods, cluster-robust variance, and effect sizes.
+"""Statistical treatment.
+
+Environments within a dataset are correlated, so the unit of analysis is the
+stream/fold, not the sample. Provides paired bootstrap CIs over folds, Holm-
+Bonferroni correction across methods, cluster-robust variance, and effect sizes.
 
 Status: STUB -- implemented on Day 12 of the 15-day plan (see docs/PLAN.md).
 """
@@ -14,6 +18,7 @@ def paired_bootstrap_ci(a: np.ndarray, b: np.ndarray, n_boot: int = 10_000, alph
 
 
 def holm_bonferroni(pvalues: dict[str, float], alpha: float = 0.05) -> dict[str, bool]:
+    """Holm-Bonferroni correction across methods; returns per-key rejection decisions."""
     raise NotImplementedError("Day 12")
 
 

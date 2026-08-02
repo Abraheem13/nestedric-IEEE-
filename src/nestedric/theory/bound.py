@@ -1,4 +1,15 @@
-"""Frequency-separation forgetting bound.\n\nInformal statement (to be sharpened on Day 11):\n  For a two-level nested learner whose slow level updates every tau_s steps and\n  fast level every tau_f steps, under drift rate delta between consecutive\n  environments, the backward-transfer degradation obeys\n      |BWT| <= C1 * delta * f(tau_s / tau_f) + C2 / n_eff\n  with f decreasing in the separation ratio, recovering naive fine-tuning as the\n  degenerate single-timescale case tau_s = tau_f.\n\nA companion proposition characterises the risk-optimal ratio (tau_s/tau_f)* as a\nfunction of delta -- the stability/plasticity trade-off.
+"""Frequency-separation forgetting bound.
+
+Informal statement (to be sharpened on Day 11):
+  For a two-level nested learner whose slow level updates every tau_s steps and
+  fast level every tau_f steps, under drift rate delta between consecutive
+  environments, the backward-transfer degradation obeys
+      |BWT| <= C1 * delta * f(tau_s / tau_f) + C2 / n_eff
+  with f decreasing in the separation ratio, recovering naive fine-tuning as the
+  degenerate single-timescale case tau_s = tau_f.
+
+A companion proposition characterises the risk-optimal ratio (tau_s/tau_f)* as a
+function of delta -- the stability/plasticity trade-off.
 
 Status: STUB -- implemented on Day 11 of the 15-day plan (see docs/PLAN.md).
 """
@@ -18,6 +29,8 @@ def optimal_ratio(drift_rate: float, consts: dict) -> float:
     raise NotImplementedError("Day 11")
 
 
-def check_bound(measured_bwt: np.ndarray, ratios: np.ndarray, drift: np.ndarray, consts: dict) -> dict:
+def check_bound(
+    measured_bwt: np.ndarray, ratios: np.ndarray, drift: np.ndarray, consts: dict
+) -> dict:
     """Verify empirically that measured |BWT| lies below the bound, and report slack."""
     raise NotImplementedError("Day 11")

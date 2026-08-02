@@ -1,12 +1,17 @@
-"""Environment-stream construction.\n\nAn O-RAN-CL *stream* is an ordered list of environments; each environment is a\ncontiguous slice of harmonised KPI records sharing a context signature (slice mix,\ntraffic profile, scheduler, mobility regime, UE count). The learner sees them\nsequentially and is evaluated on all previously seen environments.
+"""Environment-stream construction.
+
+An O-RAN-CL *stream* is an ordered list of environments; each environment is a
+contiguous slice of harmonised KPI records sharing a context signature (slice mix,
+traffic profile, scheduler, mobility regime, UE count). The learner sees them
+sequentially and is evaluated on all previously seen environments.
 
 Status: STUB -- implemented on Day 2 of the 15-day plan (see docs/PLAN.md).
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
-from typing import Iterator, Sequence
 
 
 @dataclass

@@ -7,4 +7,5 @@ from __future__ import annotations
 
 
 def set_paper_style() -> None:
+    """Apply the manuscript figure style (fonts, sizes, colours) to matplotlib."""
     raise NotImplementedError("Day 13")

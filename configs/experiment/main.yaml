@@ -1,6 +1,7 @@
 # Main benchmark: all methods x all streams x 5 seeds.
 name: main
 streams:
+  - configs/stream/radio_shift.yaml
   - configs/stream/slice_shift.yaml
   - configs/stream/traffic_shift.yaml
   - configs/stream/sched_shift.yaml

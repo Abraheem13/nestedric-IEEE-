@@ -1,33 +1,29 @@
-"""Adapter for the Colosseum COMMAG dataset (wineslab/colosseum-oran-commag-dataset).
+"""COMMAG dataset entry point.
 
-Status: STUB -- implemented on Day 1 of the 15-day plan (see docs/PLAN.md).
+Thin wrapper over :mod:`nestedric.data.colosseum`. COMMAG contributes the mobility
+(static/slow), distance (close/medium/far) and slice-assignment (mixed/traffic) axes
+that ColO-RAN holds fixed -- these are the source of genuine radio-condition shift.
+
+Source: Bonati, D'Oro, Polese, Basagni, Melodia, "Intelligence and Learning in O-RAN
+for Data-driven NextG Cellular Networks," IEEE Communications Magazine, vol. 59,
+no. 10, pp. 21-27, October 2021.
 """
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 
-import pandas as pd
+from nestedric.data.colosseum import COMMAG_REPO, LICENCE
+from nestedric.data.colosseum import prepare as _prepare
 
-SOURCE_URL = ""  # TODO(Day 1): pin the exact release / commit hash.
-LICENCE = ""     # TODO(Day 1): record licence for the artefact release.
+SOURCE_URL = COMMAG_REPO
+DATASET = "commag"
+__all__ = ["SOURCE_URL", "LICENCE", "DATASET", "prepare"]
 
-
-def download(dest: Path) -> Path:
-    """Fetch the raw archive into ``dest`` and return the extracted root."""
-    raise NotImplementedError("Day 1")
-
-
-def load_raw(root: Path) -> pd.DataFrame:
-    """Read the raw CSVs without harmonisation."""
-    raise NotImplementedError("Day 1")
+prepare = partial(_prepare, dataset=DATASET)
 
 
-def to_canonical(raw: pd.DataFrame) -> pd.DataFrame:
-    """Map raw columns onto ``nestedric.data.schema`` columns and units."""
-    raise NotImplementedError("Day 1")
-
-
-def prepare(root: Path, out: Path) -> Path:
-    """``download`` -> ``load_raw`` -> ``to_canonical`` -> parquet. Returns output path."""
-    raise NotImplementedError("Day 1")
+def default_root(raw_dir: Path) -> Path:
+    """Conventional location after ``scripts/download_data.sh``."""
+    return raw_dir / "colosseum-oran-commag-dataset"

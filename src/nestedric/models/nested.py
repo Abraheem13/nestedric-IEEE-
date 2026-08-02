@@ -1,4 +1,11 @@
-"""The NestedRIC learner.\n\nMaps the O-RAN control loops onto nested optimisation levels:\n  level 0 (fast, tau_f)  <-> near-RT RIC   (10 ms - 1 s)\n  level 1 (slow, tau_s)  <-> non-RT RIC    (> 1 s)\n  level 2 (optional)     <-> SMO / policy horizon\nEach level owns a context flow and an associative memory; the slow level supplies\nthe update rule for the fast level (self-modification).
+"""The NestedRIC learner.
+
+Maps the O-RAN control loops onto nested optimisation levels:
+  level 0 (fast, tau_f)  <-> near-RT RIC   (10 ms - 1 s)
+  level 1 (slow, tau_s)  <-> non-RT RIC    (> 1 s)
+  level 2 (optional)     <-> SMO / policy horizon
+Each level owns a context flow and an associative memory; the slow level supplies
+the update rule for the fast level (self-modification).
 
 Status: STUB -- implemented on Day 5-7 of the 15-day plan (see docs/PLAN.md).
 """
@@ -19,6 +26,7 @@ class NestedRIC(nn.Module):
         Update period per level, in optimiser steps.
     self_modifying
         If True, the slow level parameterises the fast level's update rule.
+
     """
 
     def __init__(

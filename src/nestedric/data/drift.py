@@ -1,4 +1,7 @@
-"""Controlled non-stationarity injection and drift measurement.\n\nNeeded both for the contingency plan (public traces may drift too little) and to\nobtain the drift rate that enters the frequency-separation bound.
+"""Controlled non-stationarity injection and drift measurement.
+
+Needed both for the contingency plan (public traces may drift too little) and to
+obtain the drift rate that enters the frequency-separation bound.
 
 Status: STUB -- implemented on Day 10 of the 15-day plan (see docs/PLAN.md).
 """

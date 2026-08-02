@@ -1,0 +1,22 @@
+name: radio-shift
+family: radio-shift
+source: [commag]
+n_environments: 6
+order: fixed
+seed: 0
+env_min_samples: 5000
+eval_fraction: 0.2
+# Verified Day 1: COMMAG is the only source that varies these axes.
+context_axes: [mobility, distance, slice_assignment]
+environments:
+  - {slice_assignment: traffic, mobility: static, distance: close}
+  - {slice_assignment: traffic, mobility: static, distance: medium}
+  - {slice_assignment: traffic, mobility: static, distance: far}
+  - {slice_assignment: traffic, mobility: slow,   distance: close}
+  - {slice_assignment: mixed,   mobility: static, distance: close}
+  - {slice_assignment: mixed,   mobility: slow,   distance: close}
+description: |
+  Environments differ by MOBILITY (static vs slow, 3 m/s), DISTANCE (20/50/100 m) and
+  SLICE ASSIGNMENT (traffic-based vs mixed). These are genuine radio-condition shifts
+  rather than configuration relabelling, and are therefore the most likely source of
+  real catastrophic forgetting in the corpus. Promoted to a primary stream on Day 1.

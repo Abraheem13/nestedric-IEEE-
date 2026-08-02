@@ -7,4 +7,5 @@ from __future__ import annotations
 
 
 def get_logger(name: str):
+    """Return a run logger writing structured JSONL plus formatted console output."""
     raise NotImplementedError("Day 2")

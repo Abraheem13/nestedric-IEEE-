@@ -49,6 +49,21 @@ target-version = "py310"
 select = ["E", "F", "I", "N", "UP", "B", "D"]
 ignore = ["D203", "D213"]
 
+# D102/D105/D107: methods implement the documented `Method` protocol in
+# methods/base.py; repeating its docstrings per method adds noise, not information.
+# D401: several docstrings describe a returned quantity ("Steps to recover ...") where
+# imperative mood reads worse than the noun phrase.
+extend-ignore = ["D102", "D105", "D107", "D401"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test names are the documentation; requiring docstrings on every test adds noise
+# without adding information. N812 covers the conventional `as C` module alias.
+"tests/*" = ["D100", "D101", "D102", "D103", "D401", "N812"]
+"scripts/*" = ["D103", "N812"]
+# R is the conventional symbol for the T x T continual-learning evaluation matrix.
+"src/nestedric/eval/metrics.py" = ["N803"]
+"src/nestedric/theory/bound.py" = ["N803"]
+
 [tool.black]
 line-length = 100
 

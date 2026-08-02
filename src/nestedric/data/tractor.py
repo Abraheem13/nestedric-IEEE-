@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 SOURCE_URL = ""  # TODO(Day 1): pin the exact release / commit hash.
-LICENCE = ""     # TODO(Day 1): record licence for the artefact release.
+LICENCE = ""  # TODO(Day 1): record licence for the artefact release.
 
 
 def download(dest: Path) -> Path:

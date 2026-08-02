@@ -1,4 +1,8 @@
-"""Continuum Memory System (CMS).\n\nA stack of associative-memory blocks, each with its own update period. Block i is\nrefreshed every tau_i steps with tau_0 < tau_1 < ... < tau_{L-1}; the frequency\nseparation ratio tau_{i+1}/tau_i is the central knob of this paper.
+"""Continuum Memory System (CMS).
+
+A stack of associative-memory blocks, each with its own update period. Block i is
+refreshed every tau_i steps with tau_0 < tau_1 < ... < tau_{L-1}; the frequency
+separation ratio tau_{i+1}/tau_i is the central knob of this paper.
 
 Status: STUB -- implemented on Day 5 of the 15-day plan (see docs/PLAN.md).
 """
@@ -35,6 +39,7 @@ class ContinuumMemory(nn.Module):
     periods
         Update periods ``(tau_0, ..., tau_{L-1})`` in optimiser steps. In the RIC mapping
         these are anchored to the near-RT (10 ms - 1 s) and non-RT (> 1 s) control loops.
+
     """
 
     def __init__(self, dim: int, periods: tuple[int, ...], capacity: int) -> None:

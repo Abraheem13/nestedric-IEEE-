@@ -6,7 +6,7 @@ Status: STUB -- implemented on Day 2 of the 15-day plan (see docs/PLAN.md).
 from __future__ import annotations
 
 import argparse
-from typing import Sequence
+from collections.abc import Sequence
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Parse *argv*, dispatch to the sub-command, and return an exit code."""
     raise NotImplementedError("Day 2")
 
 
