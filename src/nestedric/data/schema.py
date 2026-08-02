@@ -219,8 +219,27 @@ VALID_RANGES: dict[str, tuple[float, float]] = {
 #: a constant column contributes nothing and wastes normalisation capacity.
 CONSTANT_COLUMNS: tuple[str, ...] = ("ul_rssi", "tx_errors_dl_pct")
 
+#: Columns whose *missingness* identifies the source dataset, measured on the full
+#: corpus by ``scripts/diagnose_quality.py`` (the Day 2 gate).
+#:
+#: ``sum_requested_prbs`` is missing on 0.00% of ColO-RAN rows and 10.19% of COMMAG
+#: rows -- a 10.2 percentage-point gap. In the cross-dataset stream a model could read
+#: the testbed straight off the missingness pattern and score well without learning
+#: anything transferable, inflating the headline result.
+#:
+#: It is dropped everywhere rather than per stream, because the shared backbone takes a
+#: fixed input width: a feature set varying by stream would mean a different model per
+#: stream, and "one backbone for every method" would no longer hold.
+#:
+#: ``ratio_granted_req``, derived from this column, was expected to inherit the leak.
+#: Measured, it does not: ColO-RAN's idle rows push its ratio missingness to 21.5%
+#: against COMMAG's 19.2%, a 2.3pp gap well inside the threshold. It stays.
+LEAKY_COLUMNS: tuple[str, ...] = ("sum_requested_prbs",)
+
 #: KPI columns actually used as model features.
-FEATURE_COLUMNS: tuple[str, ...] = tuple(c for c in KPI_COLUMNS if c not in CONSTANT_COLUMNS)
+FEATURE_COLUMNS: tuple[str, ...] = tuple(
+    c for c in KPI_COLUMNS if c not in CONSTANT_COLUMNS and c not in LEAKY_COLUMNS
+)
 
 
 def sanitise(df: pd.DataFrame, report: bool = False) -> tuple[pd.DataFrame, dict[str, int]]:

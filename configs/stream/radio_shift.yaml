@@ -15,6 +15,9 @@ environments:
   - {slice_assignment: traffic, mobility: slow,   distance: close}
   - {slice_assignment: mixed,   mobility: static, distance: close}
   - {slice_assignment: mixed,   mobility: slow,   distance: close}
+max_traces_per_env: 240      # environments run to millions of rows; 300 runs on one L4
+trace_quality_column: sum_requested_prbs
+trace_max_missing: 0.20      # COMMAG's worst decile carries 86% of the missingness
 description: |
   Environments differ by MOBILITY (static vs slow, 3 m/s), DISTANCE (20/50/100 m) and
   SLICE ASSIGNMENT (traffic-based vs mixed). These are genuine radio-condition shifts

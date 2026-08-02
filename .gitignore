@@ -28,3 +28,6 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
+# run logs from the cluster
+logs/

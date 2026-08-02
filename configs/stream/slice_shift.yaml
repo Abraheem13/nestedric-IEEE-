@@ -7,6 +7,9 @@ seed: 0
 env_min_samples: 5000
 eval_fraction: 0.2
 context_axes: [tr_config]   # RBG allocation per slice = the slice mix
+max_traces_per_env: 240      # environments run to millions of rows; 300 runs on one L4
+trace_quality_column: sum_requested_prbs
+trace_max_missing: 0.20      # COMMAG's worst decile carries 86% of the missingness
 description: |
   Environments differ by slice mix (eMBB / URLLC / MTC proportions). The mildest
   shift; establishes whether any forgetting exists at all on public traces.

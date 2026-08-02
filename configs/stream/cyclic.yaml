@@ -8,4 +8,7 @@ seed: 0
 context_axes: [scenario]
 env_min_samples: 5000
 eval_fraction: 0.2
+max_traces_per_env: 240      # environments run to millions of rows; 300 runs on one L4
+trace_quality_column: sum_requested_prbs
+trace_max_missing: 0.20      # COMMAG's worst decile carries 86% of the missingness
 description: "Recurring environments; isolates genuine retention from lucky re-fitting."

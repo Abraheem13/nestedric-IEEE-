@@ -4,9 +4,12 @@ source: [coloran, commag]
 n_environments: 9
 order: fixed
 seed: 0
-context_axes: [dataset, scenario]
+context_axes: [dataset, scenario, tr_config]
 env_min_samples: 5000
 eval_fraction: 0.2
+max_traces_per_env: 240      # environments run to millions of rows; 300 runs on one L4
+trace_quality_column: sum_requested_prbs
+trace_max_missing: 0.20      # COMMAG's worst decile carries 86% of the missingness
 description: |
   Hardest stream: environments span both testbeds, so the shift covers bandwidth
   (10 MHz/50 PRB vs 3 MHz/15 PRB), BS count (7 vs 4) and instrumentation. The

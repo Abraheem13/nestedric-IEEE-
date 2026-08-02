@@ -147,18 +147,43 @@ def _split_filters(spec: dict[str, Any]) -> tuple[dict, dict]:
 
 
 def _enumerate_traces(
-    processed_dir: Path, dataset: str, shards: list[str], row_filter: dict[str, Any]
-) -> tuple[list[str], int]:
-    """Trace ids and row count for a shard selection, after row-level filtering.
+    processed_dir: Path,
+    dataset: str,
+    shards: list[str],
+    row_filter: dict[str, Any],
+    quality_column: str | None = None,
+    max_missing: float = 1.0,
+) -> pd.Series:
+    """Row count per trace for a shard selection, after row-level filtering.
 
-    Reads only the columns needed to identify and filter traces -- never the KPIs.
+    Reads only the columns needed to identify, filter and quality-screen traces --
+    never the KPI block. Returns a Series indexed by ``trace_id`` so a caller that
+    subsamples traces still knows the exact row count of what it kept.
+
+    When *quality_column* is given, traces whose missing fraction in that column
+    exceeds *max_missing* are dropped. This is the response to a "concentrated in
+    traces" verdict from ``scripts/diagnose_quality.py``: on COMMAG the worst decile
+    of traces carries 86% of all missing ``sum_requested_prbs``, with a median trace
+    at 0.0%, so removing a few hundred traces is far cheaper than losing a feature or
+    masking across the whole corpus.
     """
     cols = ["trace_id", *row_filter]
-    df = C.load_shards(processed_dir, dataset, shards, columns=cols)
+    if quality_column:
+        cols.append(quality_column)
+    df = C.load_shards(processed_dir, dataset, shards, columns=list(dict.fromkeys(cols)))
+
     for key, want in row_filter.items():
         wanted = set(want) if isinstance(want, (list, tuple, set)) else {want}
         df = df[df[key].isin(wanted)]
-    return sorted(df["trace_id"].dropna().unique().tolist()), len(df)
+
+    if quality_column and max_missing < 1.0:
+        missing = df.groupby("trace_id", observed=True)[quality_column].apply(
+            lambda s: s.isna().mean()
+        )
+        keep = set(missing[missing <= max_missing].index)
+        df = df[df["trace_id"].isin(keep)]
+
+    return df.groupby("trace_id", observed=True).size().sort_index()
 
 
 def _split_traces(
@@ -278,6 +303,9 @@ def build_stream(cfg: dict, processed_dir: str | Path = "data/processed") -> Env
     eval_fraction = float(cfg.get("eval_fraction", 0.2))
     min_samples = int(cfg.get("env_min_samples", 0))
     n_environments = int(cfg.get("n_environments", 0)) or None
+    max_traces = int(cfg.get("max_traces_per_env", 0)) or None
+    quality_column = cfg.get("trace_quality_column")
+    max_missing = float(cfg.get("trace_max_missing", 1.0))
 
     manifests = {}
     for ds in sources:
@@ -307,15 +335,34 @@ def build_stream(cfg: dict, processed_dir: str | Path = "data/processed") -> Env
     dropped: list[tuple[str, int]] = []
 
     for i, spec in enumerate(specs):
-        env_id = spec.pop("env_id", None) or f"env{i:02d}"
+        base_id = spec.pop("env_id", None) or f"env{i:02d}"
         shard_f, row_f = _split_filters(spec)
 
         for ds, ds_manifest in manifests.items():
             sel = _match_shards(ds_manifest, shard_f)
             if sel.empty:
                 continue
+            # One spec can match both datasets (both have a 'rome_static_medium'
+            # scenario). Those are different environments and must not share an id:
+            # the T x T matrix is keyed by environment, so a duplicate id silently
+            # overwrites a column of results.
+            env_id = base_id if len(manifests) == 1 else f"{base_id}_{ds}"
             shards = sorted(sel["shard"].tolist())
-            traces, n_rows = _enumerate_traces(processed_dir, ds, shards, row_f)
+            counts = _enumerate_traces(
+                processed_dir, ds, shards, row_f, quality_column, max_missing
+            )
+
+            if max_traces and len(counts) > max_traces:
+                # Environments here run to millions of rows; the campaign is 300 runs
+                # on one L4. Subsampling *traces* (never rows) keeps the trace as the
+                # atom and keeps environments comparable in size, which the bound's
+                # per-environment effective sample size depends on.
+                rng = seeded_rng(seed, name, env_id, "subsample")
+                keep = rng.choice(counts.index.to_numpy(), size=max_traces, replace=False)
+                counts = counts.loc[sorted(keep)]
+
+            traces = counts.index.tolist()
+            n_rows = int(counts.sum())
 
             if n_rows < min_samples:
                 dropped.append((env_id, n_rows))

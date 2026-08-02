@@ -192,7 +192,19 @@ def test_to_canonical_output_passes_validator():
 def test_constant_columns_excluded_from_features():
     assert set(CONSTANT_COLUMNS).isdisjoint(FEATURE_COLUMNS)
     assert "ul_rssi" not in FEATURE_COLUMNS
-    assert len(FEATURE_COLUMNS) == 19
+    assert len(FEATURE_COLUMNS) == 18  # 21 KPIs - 2 constant - 1 leaky
+
+
+def test_leaky_columns_excluded_from_features():
+    """Day 2 gate: sum_requested_prbs is 0% missing on ColO-RAN, 10.2% on COMMAG."""
+    from nestedric.data.schema import KPI_COLUMNS, LEAKY_COLUMNS
+
+    assert set(LEAKY_COLUMNS).isdisjoint(FEATURE_COLUMNS)
+    assert "sum_requested_prbs" not in FEATURE_COLUMNS
+    # The derived ratio measured a 2.3pp gap, inside threshold, so it is kept.
+    assert "ratio_granted_req" in FEATURE_COLUMNS
+    # The dropped counter stays in the parquet: excluded as a feature, not deleted.
+    assert "sum_requested_prbs" in KPI_COLUMNS
 
 
 def test_every_ranged_column_is_a_known_kpi():
