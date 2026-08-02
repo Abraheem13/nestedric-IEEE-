@@ -1,0 +1,20 @@
+# Scheduling policy alone, within ONE testbed.
+#
+# Day 4c found that sched_shift.yaml, drawing on both datasets, puts a ColO-RAN ->
+# COMMAG boundary in the middle of the stream: that single transition carries a
+# transfer gap of 87.6 against 0.47-4.11 for every other transition in the same
+# stream. Its -0.0443 BWT therefore cannot be attributed to scheduling policy without
+# this control, which holds the testbed fixed and varies only the scheduler.
+name: sched-shift-commag
+family: sched-shift
+source: [commag]
+n_environments: 3
+order: fixed
+seed: 0
+context_axes: [sched_policy]
+env_min_samples: 5000
+eval_fraction: 0.2
+max_traces_per_env: 240
+trace_quality_column: sum_requested_prbs
+trace_max_missing: 0.20
+description: "Scheduling policy 0/1/2 on ColO-RAN only. No testbed change."

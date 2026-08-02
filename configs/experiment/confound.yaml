@@ -1,0 +1,14 @@
+# Is sched-shift's forgetting caused by the scheduler, or by the testbed switch
+# sitting inside the stream? Two within-testbed controls against the mixed original.
+name: confound
+streams:
+  - configs/stream/sched_shift_coloran.yaml
+  - configs/stream/sched_shift_commag.yaml
+model: configs/model/base.yaml
+methods: [finetune, joint]
+seeds: [0, 1]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+output_dir: results/runs/confound
