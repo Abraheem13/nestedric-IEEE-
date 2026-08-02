@@ -1,31 +1,16 @@
-"""Naive sequential fine-tuning (lower bound / forgetting reference).
+"""Naive sequential fine-tuning: the lower bound and the forgetting reference.
 
-Status: STUB -- implemented on Day 3 of the 15-day plan (see docs/PLAN.md).
+Deliberately does nothing to protect old environments. Its |BWT| is the phenomenon the
+paper is about -- if this method does not forget on a stream, there is nothing there to
+improve on, which is exactly what the Day 4 gate checks.
 """
 
 from __future__ import annotations
 
 from nestedric.methods import register
+from nestedric.methods.base import SgdMethod
 
 
 @register("finetune")
-class Finetune:
+class Finetune(SgdMethod):
     """Naive sequential fine-tuning (lower bound / forgetting reference)."""
-
-    def __init__(self, model, cfg) -> None:
-        raise NotImplementedError("Day 3")
-
-    def begin_environment(self, env, env_index: int) -> None:
-        raise NotImplementedError("Day 3")
-
-    def observe(self, batch, step: int) -> dict:
-        raise NotImplementedError("Day 3")
-
-    def end_environment(self, env, env_index: int) -> None:
-        raise NotImplementedError("Day 3")
-
-    def predict(self, batch):
-        raise NotImplementedError("Day 3")
-
-    def footprint(self) -> dict:
-        raise NotImplementedError("Day 3")

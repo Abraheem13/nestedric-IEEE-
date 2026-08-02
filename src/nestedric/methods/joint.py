@@ -1,31 +1,20 @@
-"""Joint training on all environments (upper bound / oracle).
+"""Joint training on all environments at once: the oracle upper bound.
 
-Status: STUB -- implemented on Day 3 of the 15-day plan (see docs/PLAN.md).
+Not a continual-learning method -- it is handed the union of every environment, which no
+deployed xApp could have. It bounds what the backbone can express, so a gap between
+`joint` and the best continual method is a capacity ceiling rather than a learning-rule
+failure. The trainer recognises `wants_joint_data` and feeds it accordingly.
 """
 
 from __future__ import annotations
 
 from nestedric.methods import register
+from nestedric.methods.base import SgdMethod
 
 
 @register("joint")
-class Joint:
+class Joint(SgdMethod):
     """Joint training on all environments (upper bound / oracle)."""
 
-    def __init__(self, model, cfg) -> None:
-        raise NotImplementedError("Day 3")
-
-    def begin_environment(self, env, env_index: int) -> None:
-        raise NotImplementedError("Day 3")
-
-    def observe(self, batch, step: int) -> dict:
-        raise NotImplementedError("Day 3")
-
-    def end_environment(self, env, env_index: int) -> None:
-        raise NotImplementedError("Day 3")
-
-    def predict(self, batch):
-        raise NotImplementedError("Day 3")
-
-    def footprint(self) -> dict:
-        raise NotImplementedError("Day 3")
+    #: Read by the trainer, which then supplies batches drawn from every environment.
+    wants_joint_data = True

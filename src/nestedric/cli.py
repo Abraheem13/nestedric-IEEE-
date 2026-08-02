@@ -118,6 +118,18 @@ def _cmd_stream(cfg: dict, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_train(cfg: dict, args: argparse.Namespace) -> int:
+    """Run every (method, stream, seed) cell in an experiment config."""
+    from nestedric.engine.runner import run_sweep
+
+    out_dir = Path(cfg.get("output_dir", "results/runs/adhoc"))
+    for key, value in (cfg.get("overrides") or {}).items():
+        print(f"    override {key}={value}")
+    written = run_sweep(cfg, out_dir)
+    print(f"\nwrote {len(written)} run(s) under {out_dir}")
+    return 0
+
+
 def _not_yet(day: str):
     """Placeholder dispatcher for sub-commands scheduled for a later day."""
 
@@ -130,7 +142,7 @@ def _not_yet(day: str):
 COMMANDS = {
     "prepare": _cmd_prepare,
     "stream": _cmd_stream,
-    "train": _not_yet("Day 3"),
+    "train": _cmd_train,
     "evaluate": _not_yet("Day 4"),
     "ablate": _not_yet("Day 10"),
     "figures": _not_yet("Day 13"),

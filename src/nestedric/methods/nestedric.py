@@ -12,7 +12,7 @@ from nestedric.methods import register
 class NestedRICMethod:
     """Proposed method. Ablation axes are all exposed through ``cfg``."""
 
-    def __init__(self, model, cfg) -> None:
+    def __init__(self, model, cfg, device: str = "cpu") -> None:
         raise NotImplementedError("Day 5-7")
 
     def begin_environment(self, env, env_index: int) -> None:

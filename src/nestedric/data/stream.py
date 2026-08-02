@@ -381,7 +381,7 @@ def build_stream(cfg: dict, processed_dir: str | Path = "data/processed") -> Env
             n_rows = int(counts.sum())
 
             if n_rows < min_samples:
-                dropped.append((env_id, n_rows))
+                dropped.append((env_id, n_rows, f"below env_min_samples={min_samples}"))
                 continue
 
             overlap = [t for t in traces if t in claimed]
@@ -399,7 +399,9 @@ def build_stream(cfg: dict, processed_dir: str | Path = "data/processed") -> Env
                 # One trace cannot be both trained on and evaluated on. Such an
                 # environment would contribute an empty column to the T x T matrix,
                 # which every downstream metric would then average over as if real.
-                dropped.append((env_id, n_rows))
+                dropped.append(
+                    (env_id, n_rows, f"only {len(traces)} trace(s); cannot split train/eval")
+                )
                 for t in traces:
                     claimed.pop(t, None)
                 continue
@@ -418,9 +420,9 @@ def build_stream(cfg: dict, processed_dir: str | Path = "data/processed") -> Env
             )
 
     if not environments:
+        reasons = "; ".join(f"{eid} ({rows:,} rows): {why}" for eid, rows, why in dropped[:6])
         raise StreamError(
-            f"stream {name!r} produced no environments "
-            f"(dropped {len(dropped)} for having fewer than {min_samples} rows)"
+            f"stream {name!r} produced no environments. Dropped {len(dropped)}: {reasons}"
         )
 
     order = cfg.get("order", "fixed")

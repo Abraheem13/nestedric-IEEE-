@@ -12,7 +12,7 @@ from nestedric.methods import register
 class Titans:
     """Single-timescale test-time memory (Titans) -- frequency-separation ablation."""
 
-    def __init__(self, model, cfg) -> None:
+    def __init__(self, model, cfg, device: str = "cpu") -> None:
         raise NotImplementedError("Day 4")
 
     def begin_environment(self, env, env_index: int) -> None:

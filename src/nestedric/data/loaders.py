@@ -127,6 +127,48 @@ def _load_env_frame(
     return df[columns] if columns else df
 
 
+#: Relative change in granted PRBs below which the action is "hold". The control task
+#: is a derived label, not a logged one: no action is recorded in the traces, and the
+#: obvious candidate (``sched_policy``) is constant within every environment we cut, so
+#: predicting it would be a lookup rather than control. See docs/BENCHMARK.md.
+ACTION_DEADBAND = 0.05
+
+#: Control-task classes, in label order.
+ACTIONS: tuple[str, ...] = ("decrease", "hold", "increase")
+
+
+def derive_actions(granted: np.ndarray, deadband: float = ACTION_DEADBAND) -> np.ndarray:
+    """Label each step by the next change in granted PRBs: decrease / hold / increase.
+
+    This is the xApp-shaped task: given a window of KPIs, choose how the allocation
+    should move. It is a *constructed* label and the paper must say so -- the traces
+    log outcomes, not decisions. The deadband keeps sensor noise out of the two active
+    classes, which would otherwise dominate a signal that is mostly flat.
+    """
+    current = granted[:-1]
+    nxt = granted[1:]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        rel = np.where(current > 0, (nxt - current) / np.maximum(current, 1e-9), 0.0)
+    rel = np.nan_to_num(rel, nan=0.0, posinf=0.0, neginf=0.0)
+    labels = np.ones(len(rel), dtype="int64")  # hold
+    labels[rel > deadband] = 2  # increase
+    labels[rel < -deadband] = 0  # decrease
+    return labels
+
+
+@dataclass
+class WindowSet:
+    """Model-ready arrays for one environment split, plus the trace each window came from."""
+
+    x: np.ndarray  # (n, window, n_features + 1)
+    y: np.ndarray  # (n, n_targets) standardised regression targets
+    actions: np.ndarray  # (n,) control-task class labels
+    trace_index: np.ndarray  # (n,) which trace each window came from
+
+    def __len__(self) -> int:
+        return len(self.x)
+
+
 def build_windows(
     env: Environment,
     processed_dir: str | Path,
@@ -137,7 +179,7 @@ def build_windows(
     horizon: int = 1,
     feature_columns: tuple[str, ...] = FEATURE_COLUMNS,
     target_columns: tuple[str, ...] = TARGET_COLUMNS,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> WindowSet:
     """Build ``(X, y, trace_index)`` for one environment split.
 
     ``X`` has shape ``(n_windows, window, n_features + 1)``: the standardised features
@@ -154,13 +196,15 @@ def build_windows(
     frame = _load_env_frame(env, processed_dir, [*cols, "trace_id"], traces)
 
     target_pos = [cols.index(c) for c in target_columns]
+    granted_pos = cols.index("sum_granted_prbs")
     xs: list[np.ndarray] = []
     ys: list[np.ndarray] = []
+    acts: list[np.ndarray] = []
     tidx: list[np.ndarray] = []
 
-    for order, (trace, part) in enumerate(frame.groupby("trace_id", observed=True, sort=True)):
+    for order, (_trace, part) in enumerate(frame.groupby("trace_id", observed=True, sort=True)):
         block = part[cols].to_numpy(dtype="float64", na_value=np.nan)
-        if len(block) < window + horizon:
+        if len(block) < window + horizon + 1:
             continue
 
         missing = np.isnan(block)
@@ -168,27 +212,36 @@ def build_windows(
         missing_rate = missing.mean(axis=1, keepdims=True).astype("float32")
         channels = np.concatenate([standardised, missing_rate], axis=1)
 
-        starts = np.arange(0, len(block) - window - horizon + 1, stride)
+        # Actions come from the RAW granted-PRB counter, not the standardised one: a
+        # relative change is only meaningful in the original units.
+        raw_granted = np.nan_to_num(block[:, granted_pos], nan=0.0)
+        actions = derive_actions(raw_granted)
+
+        last = len(block) - window - horizon
+        starts = np.arange(0, min(last, len(actions) - window - horizon + 1), stride)
         if not len(starts):
             continue
         idx = starts[:, None] + np.arange(window)[None, :]
+        end = starts + window + horizon - 1
         xs.append(channels[idx])
-        ys.append(standardised[starts + window + horizon - 1][:, target_pos])
+        ys.append(standardised[end][:, target_pos])
+        acts.append(actions[end])
         tidx.append(np.full(len(starts), order, dtype="int32"))
         del block, standardised, channels
 
     if not xs:
-        n_features = len(cols) + 1
-        return (
-            np.empty((0, window, n_features), dtype="float32"),
-            np.empty((0, len(target_columns)), dtype="float32"),
-            np.empty((0,), dtype="int32"),
+        return WindowSet(
+            x=np.empty((0, window, len(cols) + 1), dtype="float32"),
+            y=np.empty((0, len(target_columns)), dtype="float32"),
+            actions=np.empty((0,), dtype="int64"),
+            trace_index=np.empty((0,), dtype="int32"),
         )
 
-    return (
-        np.concatenate(xs).astype("float32"),
-        np.concatenate(ys).astype("float32"),
-        np.concatenate(tidx),
+    return WindowSet(
+        x=np.concatenate(xs).astype("float32"),
+        y=np.concatenate(ys).astype("float32"),
+        actions=np.concatenate(acts),
+        trace_index=np.concatenate(tidx),
     )
 
 
@@ -213,8 +266,10 @@ def make_dataloaders(
 
     loaders = []
     for traces, shuffle in ((env.train_traces, True), (env.eval_traces, False)):
-        x, y, _ = build_windows(env, processed_dir, normaliser, traces, window, stride, horizon)
-        dataset = TensorDataset(torch.from_numpy(x), torch.from_numpy(y))
+        ws = build_windows(env, processed_dir, normaliser, traces, window, stride, horizon)
+        dataset = TensorDataset(
+            torch.from_numpy(ws.x), torch.from_numpy(ws.y), torch.from_numpy(ws.actions)
+        )
         generator = torch.Generator().manual_seed(seed)
         loaders.append(
             DataLoader(

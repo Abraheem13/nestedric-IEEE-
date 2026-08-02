@@ -12,7 +12,7 @@ from nestedric.methods import register
 class Lwf:
     """Learning without Forgetting distillation (Li & Hoiem, 2017)."""
 
-    def __init__(self, model, cfg) -> None:
+    def __init__(self, model, cfg, device: str = "cpu") -> None:
         raise NotImplementedError("Day 4")
 
     def begin_environment(self, env, env_index: int) -> None:

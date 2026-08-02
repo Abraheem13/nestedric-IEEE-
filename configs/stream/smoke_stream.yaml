@@ -1,0 +1,14 @@
+# Two small environments for the end-to-end wiring check. Not a benchmark stream.
+name: smoke-stream
+family: radio-shift
+source: [commag]
+n_environments: 2
+order: fixed
+seed: 0
+context_axes: [scenario]
+env_min_samples: 100
+eval_fraction: 0.25
+max_traces_per_env: 8
+trace_quality_column: sum_requested_prbs
+trace_max_missing: 0.20
+description: "Wiring check only: two environments, a dozen traces each."
