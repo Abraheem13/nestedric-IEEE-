@@ -138,6 +138,27 @@ def test_cross_dataset_stream_spans_both_testbeds(corpus: Path):
     assert {e.dataset for e in stream} == {"coloran", "commag"}
 
 
+def test_cross_dataset_selection_is_not_dominated_by_the_larger_corpus(corpus: Path):
+    """Global rank gave nine ColO-RAN environments and zero COMMAG; round-robin must not.
+
+    ColO-RAN cells span three scheduling policies and are individually much larger than
+    COMMAG's, so ranking by size alone fills every slot from one testbed and the stream
+    stops being cross-dataset while still being labelled as such.
+    """
+    stream = build_stream(
+        _cfg(
+            source=["coloran", "commag"],
+            context_axes=["dataset", "scenario", "tr_config"],
+            n_environments=4,
+        ),
+        corpus,
+    )
+    datasets = [e.dataset for e in stream]
+    assert set(datasets) == {"coloran", "commag"}
+    assert datasets.count("commag") >= 1
+    assert datasets.count("coloran") >= 1
+
+
 def test_cyclic_order_repeats_environments(corpus: Path):
     stream = build_stream(_cfg(context_axes=["sched_policy"], order="cyclic", repeat=3), corpus)
     ids = [e.env_id for e in stream]

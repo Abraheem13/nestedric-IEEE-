@@ -210,21 +210,37 @@ def _split_traces(
 def _auto_environments(manifest: pd.DataFrame, axes: Sequence[str], limit: int) -> list[dict]:
     """Derive environment specs by grouping the manifest on *axes*.
 
-    Groups are ordered by row count, largest first, so a stream truncated to
+    Within a dataset, groups are ordered by row count, largest first, so truncating to
     ``n_environments`` keeps the cells with the most data rather than an arbitrary
     alphabetical prefix.
+
+    Across datasets, selection is **round-robin, not global rank**. Ranking globally
+    silently produced a nine-environment "cross-dataset" stream containing only
+    ColO-RAN: its cells span three scheduling policies and hold ~1.4M rows each against
+    COMMAG's ~400k, so they took every slot. The stream would have measured
+    within-testbed shift while being reported as cross-testbed -- a wrong number that
+    looks entirely reasonable in a table.
     """
     bad = [a for a in axes if a not in manifest.columns]
     if bad:
         raise StreamError(f"cannot group on {bad}; manifest has {sorted(manifest.columns)}")
 
-    grouped = (
-        manifest.groupby(list(axes), observed=True)["n_rows"].sum().sort_values(ascending=False)
-    )
+    ranked: dict[str, list[dict]] = {}
+    for dataset, part in manifest.groupby("dataset", observed=True):
+        grouped = (
+            part.groupby(list(axes), observed=True)["n_rows"].sum().sort_values(ascending=False)
+        )
+        cells = []
+        for key, _ in grouped.items():
+            values = key if isinstance(key, tuple) else (key,)
+            cells.append(dict(zip(axes, values, strict=True)))
+        ranked[str(dataset)] = cells
+
     specs: list[dict] = []
-    for key, _ in grouped.items():
-        values = key if isinstance(key, tuple) else (key,)
-        specs.append(dict(zip(axes, values, strict=True)))
+    for depth in range(max((len(v) for v in ranked.values()), default=0)):
+        for dataset in sorted(ranked):
+            if depth < len(ranked[dataset]) and len(specs) < limit:
+                specs.append(ranked[dataset][depth])
         if len(specs) >= limit:
             break
     return specs
