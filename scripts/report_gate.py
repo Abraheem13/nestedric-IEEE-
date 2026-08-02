@@ -80,11 +80,26 @@ def main() -> int:
     verdicts = []
     for stream, part in ft.groupby("stream", observed=True):
         mean_bwt = float(part.bwt.mean())
-        verdict = "FORGETS" if abs(mean_bwt) >= FORGETTING_THRESHOLD else "negligible"
+        # Only NEGATIVE backward transfer is forgetting. An |BWT| test called a
+        # diverged run (+5.90) "FORGETS", which is the opposite of what happened:
+        # performance on early environments improved because the diagonal it is
+        # measured against was catastrophically bad.
+        if mean_bwt > FORGETTING_THRESHOLD:
+            verdict = "IMPLAUSIBLE (positive BWT -- suspect divergence, not retention)"
+        elif mean_bwt <= -FORGETTING_THRESHOLD:
+            verdict = "FORGETS"
+        else:
+            verdict = "negligible"
         verdicts.append(verdict)
         print(
             f"  {stream:<16} BWT={mean_bwt:+.4f} "
             f"(seeds: {', '.join(f'{v:+.4f}' for v in part.bwt)})  -> {verdict}"
+        )
+
+    if any(v.startswith("IMPLAUSIBLE") for v in verdicts):
+        print(
+            "\n  !! At least one stream has positive BWT. Do not read these as results\n"
+            "     until the run is shown to be numerically sound."
         )
 
     if all(v == "negligible" for v in verdicts):
