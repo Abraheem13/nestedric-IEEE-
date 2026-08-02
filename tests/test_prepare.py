@@ -22,7 +22,14 @@ COMMAG_PATH_STR = Path(
 )
 
 
-def _write_metrics_csv(path: Path, n: int, imsi: int, slice_id: int = 1, t0: int = 1618103191351):
+def _write_metrics_csv(
+    path: Path,
+    n: int,
+    imsi: int,
+    slice_id: int = 1,
+    t0: int = 1618103191351,
+    sched: int = 0,
+):
     """Write one slice-metrics CSV with the verified 31-column header, spacers included."""
     path.parent.mkdir(parents=True, exist_ok=True)
     values: dict[str, list] = {}
@@ -32,7 +39,7 @@ def _write_metrics_csv(path: Path, n: int, imsi: int, slice_id: int = 1, t0: int
     values["Timestamp"] = [t0 + 250 * i for i in range(n)]
     values["IMSI"] = [imsi] * n
     values["slice_id"] = [slice_id] * n
-    values["scheduling_policy"] = [0] * n
+    values["scheduling_policy"] = [sched] * n
     values["num_ues"] = [9] * n
     values["sum_requested_prbs"] = [7] * n
     values["sum_granted_prbs"] = [18] * n

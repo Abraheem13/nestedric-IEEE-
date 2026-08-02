@@ -4,4 +4,7 @@ source: [coloran, commag]
 n_environments: 6
 order: fixed
 seed: 0
+context_axes: [sched_policy]  # row-level axis: 0=RR, 1=WF, 2=PF
+env_min_samples: 5000
+eval_fraction: 0.2
 description: "Scheduling policy changes between environments (control-relevant shift)."

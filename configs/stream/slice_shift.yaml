@@ -6,6 +6,7 @@ order: fixed          # fixed | random | cyclic
 seed: 0
 env_min_samples: 5000
 eval_fraction: 0.2
+context_axes: [tr_config]   # RBG allocation per slice = the slice mix
 description: |
   Environments differ by slice mix (eMBB / URLLC / MTC proportions). The mildest
   shift; establishes whether any forgetting exists at all on public traces.

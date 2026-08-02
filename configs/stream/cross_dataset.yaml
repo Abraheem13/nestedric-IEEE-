@@ -4,6 +4,9 @@ source: [coloran, commag]
 n_environments: 9
 order: fixed
 seed: 0
+context_axes: [dataset, scenario]
+env_min_samples: 5000
+eval_fraction: 0.2
 description: |
   Hardest stream: environments span both testbeds, so the shift covers bandwidth
   (10 MHz/50 PRB vs 3 MHz/15 PRB), BS count (7 vs 4) and instrumentation. The

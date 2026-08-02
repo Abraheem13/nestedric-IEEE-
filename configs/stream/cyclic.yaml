@@ -1,8 +1,11 @@
 name: cyclic
 family: cyclic
-source: [coloran, tractor]
+source: [coloran, commag]   # TRACTOR is off the critical path (Day 1 decision)
 n_environments: 12
 order: cyclic         # environments recur, so retention is measured, not inferred
 repeat: 2
 seed: 0
+context_axes: [scenario]
+env_min_samples: 5000
+eval_fraction: 0.2
 description: "Recurring environments; isolates genuine retention from lucky re-fitting."
