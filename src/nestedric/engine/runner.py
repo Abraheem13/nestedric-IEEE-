@@ -9,6 +9,7 @@ fresh clone to reproduce a cell -- both are impossible if a run only leaves a nu
 from __future__ import annotations
 
 import json
+import os
 import platform
 import time
 from pathlib import Path
@@ -50,8 +51,34 @@ def _make_loader(ws, batch_size: int, shuffle: bool, seed: int):
     )
 
 
-def run_experiment(cfg: dict, out_dir: Path) -> Path:
+class RunInProgress(RuntimeError):
+    """Another process is already writing this run directory."""
+
+
+def _claim(out_dir: Path, force: bool = False) -> Path:
+    """Create the run directory now and mark it in progress.
+
+    Two things this buys, both learned the hard way. The directory exists while the run
+    is going, so `find ... -name results.json | wc -l` reflects work started rather than
+    only work finished -- otherwise a running job looks like a dead one. And a second
+    process pointed at the same directory fails immediately instead of interleaving its
+    output with the first, which is how two concurrent sweeps quietly corrupt each
+    other's results.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    lock = out_dir / ".running"
+    if lock.exists() and not force:
+        raise RunInProgress(
+            f"{out_dir} is already being written by pid {lock.read_text().strip()}. "
+            "Stop that process, or delete the directory to start over."
+        )
+    lock.write_text(f"{os.getpid()}\n")
+    return lock
+
+
+def run_experiment(cfg: dict, out_dir: Path, force: bool = False) -> Path:
     """Run one (method, stream, seed) experiment; write results.json."""
+    lock = _claim(out_dir, force)
     seed = int(cfg.get("seed", 0))
     set_seed(seed)
 
@@ -124,9 +151,9 @@ def run_experiment(cfg: dict, out_dir: Path) -> Path:
         }
     )
 
-    out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "results.json").write_text(json.dumps(results, indent=2, default=str))
     (out_dir / "config.json").write_text(json.dumps(cfg, indent=2, default=str))
+    lock.unlink(missing_ok=True)
     return out_dir / "results.json"
 
 
