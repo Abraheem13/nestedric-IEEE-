@@ -67,7 +67,7 @@ class Si(SgdMethod):
                     self._w[name] -= grads[name] * delta
                     self._prev[name] = param.detach().clone()
 
-        logs["si_penalty"] = float(pen)
+        logs["si_penalty"] = float(pen.detach())
         return logs
 
     def end_environment(self, env, env_index: int) -> None:

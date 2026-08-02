@@ -1,6 +1,6 @@
 .PHONY: setup data test lint fmt smoke main ablate figures clean
 
-PY ?= PYTHONPATH=src python3
+PY ?= PYTHONPATH=src python3 -u
 
 setup:
 	$(PY) -m pip install -e ".[dev]"

@@ -47,7 +47,7 @@ class Ewc(SgdMethod):
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
         self.optimizer.step()
-        logs["ewc_penalty"] = float(pen)
+        logs["ewc_penalty"] = float(pen.detach())
         return logs
 
     def end_environment(self, env, env_index: int) -> None:
