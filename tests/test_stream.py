@@ -225,3 +225,35 @@ def test_manifest_row_counts_agree_with_shards(corpus: Path):
         len(C.load_shards(corpus, "coloran", [s], columns=["trace_id"])) for s in manifest.shard
     )
     assert total == manifest.n_rows.sum()
+
+
+def test_shared_scenario_names_do_not_collide_across_datasets(corpus: Path):
+    """Both testbeds have a 'rome_static_medium'; grouping on scenario must still
+    produce disjoint environments rather than two claims on one set of traces.
+    """
+    stream = build_stream(
+        _cfg(source=["coloran", "commag"], context_axes=["scenario"], eval_fraction=0.25),
+        corpus,
+    )
+    seen: set[str] = set()
+    for env in stream:
+        traces = set(env.train_traces) | set(env.eval_traces)
+        assert seen.isdisjoint(traces)
+        seen |= traces
+        assert "dataset" in env.context
+
+
+def test_sched_shift_style_config_builds(corpus: Path):
+    """The exact shape of configs/stream/sched_shift.yaml: a row axis, two sources."""
+    stream = build_stream(
+        _cfg(
+            source=["coloran", "commag"],
+            context_axes=["sched_policy"],
+            n_environments=6,
+            eval_fraction=0.25,
+        ),
+        corpus,
+    )
+    assert len(stream) >= 2
+    ids = [e.env_id for e in stream]
+    assert len(ids) == len(set(ids)), f"duplicate environment ids: {ids}"

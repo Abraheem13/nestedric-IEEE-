@@ -233,7 +233,12 @@ def _auto_environments(manifest: pd.DataFrame, axes: Sequence[str], limit: int) 
         cells = []
         for key, _ in grouped.items():
             values = key if isinstance(key, tuple) else (key,)
-            cells.append(dict(zip(axes, values, strict=True)))
+            # The dataset is always part of the spec, even when it is not a grouping
+            # axis. Both testbeds contain a 'rome_static_medium' scenario, so grouping
+            # on scenario alone yields the *same* spec from each dataset; each then
+            # matches both, and two environments claim one set of traces. The
+            # disjointness guard catches it, but only after a stream has been built.
+            cells.append({"dataset": str(dataset), **dict(zip(axes, values, strict=True))})
         ranked[str(dataset)] = cells
 
     specs: list[dict] = []
