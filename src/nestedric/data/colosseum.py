@@ -75,6 +75,28 @@ class TraceMeta:
             f"{self.tr_config}:{self.exp_id}:bs{self.bs_id}:{self.imsi}"
         )
 
+    @property
+    def shard_key(self) -> str:
+        """Grouping key for one parquet shard.
+
+        Preparation writes one shard per ``(scenario, slice_assignment, tr_config)``
+        rather than one file per dataset. Two reasons, in order of importance:
+
+        1. The full corpus does not fit in memory on the target node (4 vCPU / 16 GB).
+           Concatenating ~35.5M rows x 35 columns needs roughly 5 GB for the frame plus
+           a full copy during ``pd.concat``. Sharding caps peak usage at one shard:
+           ~1.3M rows for ColO-RAN, ~275k for COMMAG.
+        2. Environments are defined over exactly these context axes, so the stream
+           builder can select environments by reading the manifest and then opening
+           only the shards it needs -- never the whole corpus.
+
+        Note that ColO-RAN's three scheduling policies land in the *same* shard: the
+        policy lives in a path component not carried on TraceMeta (it is read from the
+        ``scheduling_policy`` column instead), and sched-shift environments are cut
+        within a shard rather than across shards.
+        """
+        return f"{self.slice_assignment}__{self.scenario}__{self.tr_config}"
+
     def with_(self, **kw) -> TraceMeta:
         """Return a copy with fields replaced (used by tests)."""
         return replace(self, **kw)
@@ -152,7 +174,9 @@ def recompute_ratio(df: pd.DataFrame) -> pd.Series:
     return (gr / req).where(req > 0).astype("float32")
 
 
-def to_canonical(raw: pd.DataFrame, meta: TraceMeta) -> tuple[pd.DataFrame, dict[str, int]]:
+def to_canonical(
+    raw: pd.DataFrame, meta: TraceMeta, report: bool = False
+) -> tuple[pd.DataFrame, dict[str, int]]:
     """Map one raw trace onto the canonical schema, sanitising corrupt logger values.
 
     Order matters: values are masked BEFORE ``ratio_granted_req`` is derived, so the
@@ -188,31 +212,122 @@ def to_canonical(raw: pd.DataFrame, meta: TraceMeta) -> tuple[pd.DataFrame, dict
     for col in KPI_COLUMNS:
         df[col] = pd.to_numeric(df[col], errors="coerce").astype("float32")
 
-    df, masked = sanitise(df, report=True)
+    df, masked = sanitise(df, report=report)
     df["ratio_granted_req"] = recompute_ratio(df)
-    df, masked2 = sanitise(df, report=True)  # bound the derived ratio too
+    df, masked2 = sanitise(df, report=report)  # bound the derived ratio too
     for k, v in masked2.items():
         masked[k] = masked.get(k, 0) + v
 
     return df, masked
 
 
+def group_by_shard(
+    files: list[Path], dataset: str
+) -> tuple[dict[str, list[tuple[Path, TraceMeta]]], int]:
+    """Bucket metrics files by :attr:`TraceMeta.shard_key`.
+
+    Returns the buckets and the number of files whose path did not parse. Parsing every
+    path up front is cheap (no file is opened) and means the number of shards is known
+    before any data is read.
+    """
+    buckets: dict[str, list[tuple[Path, TraceMeta]]] = {}
+    unparsed = 0
+    for path in files:
+        meta = parse_path(path, dataset)
+        if meta is None:
+            unparsed += 1
+            continue
+        buckets.setdefault(meta.shard_key, []).append((path, meta))
+    return buckets, unparsed
+
+
+def prepare_shard(
+    items: list[tuple[Path, TraceMeta]],
+    out: Path,
+    min_rows: int = 100,
+    validate: bool = True,
+    verbose: bool = False,
+) -> tuple[pd.DataFrame, dict[str, int], int]:
+    """Convert one shard's traces to canonical form and write a single parquet file.
+
+    Returns the concatenated frame, the shard's sanitisation counts, and the number of
+    traces skipped for being shorter than *min_rows*. The frame is returned so the
+    caller can compute manifest statistics before dropping it -- it is the caller's job
+    to let it go out of scope, which is what keeps peak memory to one shard.
+    """
+    frames: list[pd.DataFrame] = []
+    masked_total: dict[str, int] = {}
+    skipped_short = 0
+
+    for path, meta in items:
+        raw = read_metrics_csv(path)
+        if len(raw) < min_rows:
+            skipped_short += 1
+            continue
+        frame, masked = to_canonical(raw, meta, report=verbose)
+        frames.append(frame)
+        for k, v in masked.items():
+            masked_total[k] = masked_total.get(k, 0) + v
+
+    if not frames:
+        return pd.DataFrame(columns=list(ALL_COLUMNS)), masked_total, skipped_short
+
+    df = pd.concat(frames, ignore_index=True)
+    del frames
+
+    if validate:
+        KPISchema(strict=True).validate(df)
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(out, index=False, compression="zstd")
+
+    return df, masked_total, skipped_short
+
+
+def _shard_summary(df: pd.DataFrame, shard: str, path: Path) -> dict:
+    """One manifest row: enough context to choose environments without opening data."""
+    return {
+        "shard": shard,
+        "path": path.name,
+        "dataset": df["dataset"].iloc[0],
+        "scenario": df["scenario"].iloc[0],
+        "slice_assignment": df["slice_assignment"].iloc[0],
+        "mobility": df["mobility"].iloc[0],
+        "distance": df["distance"].iloc[0],
+        "tr_config": df["tr_config"].iloc[0],
+        "n_rows": len(df),
+        "n_traces": df["trace_id"].nunique(),
+        "sched_policies": "|".join(str(v) for v in sorted(df["sched_policy"].dropna().unique())),
+        "slice_ids": "|".join(str(v) for v in sorted(df["slice_id"].dropna().unique())),
+        "exp_ids": "|".join(sorted(df["exp_id"].dropna().unique())),
+        "bs_ids": "|".join(str(v) for v in sorted(df["bs_id"].dropna().unique())),
+        "t_start_ms": int(df["timestamp_ms"].min()),
+        "t_end_ms": int(df["timestamp_ms"].max()),
+    }
+
+
 def prepare(
     root: Path,
-    out: Path,
+    out_dir: Path,
     dataset: str,
     min_rows: int = 100,
     limit: int | None = None,
     validate: bool = True,
+    verbose: bool = False,
 ) -> tuple[Path, dict[str, int]]:
-    """Convert a whole dataset tree into one canonical parquet file.
+    """Convert a dataset tree into per-scenario canonical parquet shards.
+
+    One shard per ``(scenario, slice_assignment, tr_config)``; see
+    :attr:`TraceMeta.shard_key` for why the corpus is not written as a single file.
+    Peak memory is one shard, so the full 35.5M-row ColO-RAN corpus prepares inside a
+    16 GB node.
 
     Parameters
     ----------
     root
         Dataset root (the cloned repository directory).
-    out
-        Destination parquet path.
+    out_dir
+        Destination directory. Shards go to ``out_dir/<dataset>/<shard>.parquet``.
     dataset
         ``'coloran'`` or ``'commag'``.
     min_rows
@@ -221,54 +336,64 @@ def prepare(
     limit
         Process at most this many files (for smoke runs).
     validate
-        Run the schema validator on the concatenated frame before writing.
+        Run the schema validator on every shard before writing it.
+    verbose
+        Print per-trace sanitisation counts. Off by default: on the full corpus this
+        is tens of thousands of lines.
 
     Returns
     -------
-    (path, report)
-        The written parquet path and the aggregated sanitisation report. The report is
-        also written next to the parquet as ``<name>.sanitisation.csv``, because the
-        masked fractions are a paper artefact, not a debugging aid.
+    (manifest_path, report)
+        Path to ``out_dir/<dataset>.manifest.csv`` and the aggregated sanitisation
+        counts. The manifest lists every shard with its context and row count, so the
+        stream builder never has to open data to decide what an environment contains.
+        The sanitisation report is written to ``out_dir/<dataset>.sanitisation.csv``
+        because the masked fractions are a paper artefact, not a debugging aid.
 
     """
     files = iter_metric_files(root)
     if limit is not None:
         files = files[:limit]
 
-    frames: list[pd.DataFrame] = []
+    buckets, skipped_unparsed = group_by_shard(files, dataset)
+    if not buckets:
+        raise RuntimeError(f"no parseable metrics files under {root} ({len(files)} seen)")
+
+    shard_dir = out_dir / dataset
+    shard_dir.mkdir(parents=True, exist_ok=True)
+
     total: dict[str, int] = {}
+    rows: list[dict] = []
     n_rows_seen = 0
-    skipped_unparsed = 0
     skipped_short = 0
 
-    for path in files:
-        meta = parse_path(path, dataset)
-        if meta is None:
-            skipped_unparsed += 1
-            continue
-        raw = read_metrics_csv(path)
-        if len(raw) < min_rows:
-            skipped_short += 1
-            continue
-        frame, masked = to_canonical(raw, meta)
-        frames.append(frame)
-        n_rows_seen += len(frame)
+    for i, (shard, items) in enumerate(sorted(buckets.items()), start=1):
+        path = shard_dir / f"{shard}.parquet"
+        df, masked, short = prepare_shard(items, path, min_rows, validate, verbose)
+        skipped_short += short
         for k, v in masked.items():
             total[k] = total.get(k, 0) + v
 
-    if not frames:
+        if len(df):
+            rows.append(_shard_summary(df, shard, path))
+            n_rows_seen += len(df)
+            print(
+                f"  [{i:>3}/{len(buckets)}] {shard:<48} "
+                f"{len(df):>9,} rows  {df.trace_id.nunique():>5} traces"
+            )
+        else:
+            print(f"  [{i:>3}/{len(buckets)}] {shard:<48} EMPTY (all traces < {min_rows} rows)")
+        del df  # peak memory is one shard, and only one shard
+
+    if not rows:
         raise RuntimeError(
-            f"no usable traces under {root} "
+            f"every trace under {root} was skipped "
             f"(unparsed={skipped_unparsed}, short={skipped_short})"
         )
 
-    df = pd.concat(frames, ignore_index=True)
-
-    if validate:
-        KPISchema(strict=True).validate(df)
-
-    out.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(out, index=False)
+    manifest = pd.DataFrame(rows)
+    manifest_path = out_dir / f"{dataset}.manifest.csv"
+    manifest.to_csv(manifest_path, index=False)
 
     rep = pd.DataFrame(
         [
@@ -277,6 +402,40 @@ def prepare(
         ],
         columns=["column", "masked", "fraction"],
     )
-    rep.to_csv(out.with_suffix(".sanitisation.csv"), index=False)
+    rep.to_csv(out_dir / f"{dataset}.sanitisation.csv", index=False)
 
-    return out, total
+    print(
+        f"\n  {dataset}: {n_rows_seen:,} rows in {len(rows)} shards "
+        f"(skipped: {skipped_unparsed} unparsed paths, {skipped_short} short traces)"
+    )
+    return manifest_path, total
+
+
+def read_manifest(out_dir: Path, dataset: str) -> pd.DataFrame:
+    """Load the shard manifest written by :func:`prepare`."""
+    path = out_dir / f"{dataset}.manifest.csv"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} missing -- run scripts/prepare_data.py --dataset {dataset}"
+        )
+    return pd.read_csv(path)
+
+
+def load_shards(
+    out_dir: Path,
+    dataset: str,
+    shards: list[str] | None = None,
+    columns: list[str] | None = None,
+) -> pd.DataFrame:
+    """Read selected shards into one frame.
+
+    Always pass *shards* (and ideally *columns*) in production paths: loading the whole
+    corpus is exactly what the sharding exists to avoid. The unrestricted form is for
+    small datasets and tests.
+    """
+    shard_dir = out_dir / dataset
+    names = shards if shards is not None else [p.stem for p in sorted(shard_dir.glob("*.parquet"))]
+    frames = [pd.read_parquet(shard_dir / f"{s}.parquet", columns=columns) for s in names]
+    if not frames:
+        raise FileNotFoundError(f"no shards found under {shard_dir}")
+    return pd.concat(frames, ignore_index=True)
