@@ -85,3 +85,61 @@ Mbps. eMBB ~13x MTC, matching the documented traffic configuration.
 
 **Tomorrow (Day 2):** Build `data/stream.py`. Lead with COMMAG mobility/distance as the
 environment axis. Verify the URLLC/MTC ordering. Then loaders, config, seeding, CLI.
+
+---
+
+## Day 4 - 2026-08-02
+
+**Planned:** Remaining baselines (agem, lwf, bilevel, titans), metrics, evaluator,
+footprint. Critical gate: is there measurable forgetting on these traces at all?
+
+**Done:** All nine baselines implemented and running. Near-RT footprint measured at
+batch size 1. Byte-matched memory budgets. Gate run: 3 streams x 4 methods x 2 seeds.
+
+**Numbers:** `results/runs/gate/`, summarised by `scripts/report_gate.py`.
+
+finetune BWT (mean of 2 seeds):
+
+| stream | BWT | seeds | verdict |
+|---|---|---|---|
+| radio-shift | -0.0006 | -0.0006, -0.0006 | negligible |
+| sched-shift | **-0.0443** | -0.0432, -0.0455 | forgets |
+| slice-shift | -0.0202 | -0.0270, -0.0133 | forgets (noisy) |
+
+joint - finetune (average performance): radio +0.0005, sched +0.0364, slice +0.0165.
+Oracle wins everywhere, so the loop is sound.
+
+Forgetting is remediable: on sched-shift replay cuts |BWT| from 0.0443 to 0.0051 and
+EWC to 0.0337 -- the ordering (replay > EWC) matches the CL literature.
+
+Near-RT: every method p50 ~0.83 ms, p99 0.88-1.04 ms against the 10 ms budget. All
+feasible. Extra state: replay 4.00 MB, EWC 1.52 MB, finetune/joint 0.
+
+**Surprises / suspected bugs:**
+
+1. **radio-shift does not produce forgetting, and it was supposed to be the best
+   stream.** Day 1 promoted COMMAG to primary precisely because mobility, distance and
+   slice assignment are "genuine radio-condition shifts... far better candidates for
+   producing real catastrophic forgetting than slice-mix changes". Measured, it is the
+   *weakest* of the three, by two orders of magnitude. That hypothesis was wrong.
+
+2. The likely reason is a distinction the Day 1 argument did not make: distance and
+   mobility change the *marginal* distribution of the KPIs (covariate shift), while the
+   scheduling policy changes the *mapping* from KPIs to allocation behaviour (concept
+   shift). Forgetting is a property of overwriting a learned mapping, so concept shift
+   should dominate -- and does. This is checkable: estimate drift rate per stream. If
+   radio-shift shows high input drift and near-zero BWT, then |BWT| is not a function of
+   drift magnitude alone, which is a premise the frequency-separation bound rests on.
+
+3. slice-shift's seeds differ by 2x (-0.027 vs -0.013). Two seeds is not enough there;
+   the main benchmark's five may still be thin for that stream.
+
+**Decisions taken:**
+- **sched-shift becomes the primary evaluation stream**, replacing radio-shift.
+- radio-shift is kept and reported. A stream where nothing forgets is evidence the
+  benchmark discriminates, and the covariate/concept distinction is a finding.
+- Before Day 10, run drift estimation across all three streams to test the explanation
+  in (2). If it holds it belongs in the paper; if it fails, the bound needs the
+  premise examined.
+
+**Tomorrow (Day 5):** Continuum Memory System.
