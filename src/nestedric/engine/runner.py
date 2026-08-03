@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import subprocess
 import time
 from pathlib import Path
 
@@ -23,6 +24,35 @@ from nestedric.methods import build_method
 from nestedric.models.backbone import build_backbone
 from nestedric.utils.config import load_config
 from nestedric.utils.seeding import set_seed
+
+
+def _git_commit() -> str:
+    """The commit that produced a run, recorded in its results.json.
+
+    A results directory that silently mixes code versions is how a fixed bug appears to
+    persist -- or worse, how a broken run gets reported as fixed. Day 7's re-run was
+    read from stale files and the numbers came back bit-identical, which looked like the
+    fix having no effect.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=Path(__file__).resolve().parents[3],
+        )
+        commit = out.stdout.strip() or "unknown"
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=Path(__file__).resolve().parents[3],
+        )
+        return f"{commit}-dirty" if dirty.stdout.strip() else commit
+    except Exception:  # pragma: no cover - git absent or not a repo
+        return "unknown"
 
 
 def _device(requested: str = "auto") -> str:
@@ -147,7 +177,11 @@ def run_experiment(cfg: dict, out_dir: Path, force: bool = False) -> Path:
                 }
                 for e in stream
             ],
-            "platform": {"python": platform.python_version(), "node": platform.node()},
+            "platform": {
+                "python": platform.python_version(),
+                "node": platform.node(),
+                "git_commit": _git_commit(),
+            },
         }
     )
 

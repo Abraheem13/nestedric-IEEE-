@@ -43,6 +43,7 @@ def load(run_dir: Path) -> pd.DataFrame:
                 "p99_ms": fp.get("latency_p99_ms"),
                 "near_rt": r.get("near_rt_feasible"),
                 "extra_mb": fp.get("extra_state_bytes", 0) / 1e6,
+                "commit": r.get("platform", {}).get("git_commit", "unknown"),
                 "path": str(path.parent),
             }
         )
@@ -58,6 +59,15 @@ def main() -> int:
     if df.empty:
         print(f"!! no results under {args.dir}")
         return 1
+
+    commits = sorted(set(df.commit.dropna()))
+    if len(commits) > 1:
+        print(
+            f"\n!! these runs come from {len(commits)} different code versions: {commits}\n"
+            "   Delete the run directory and re-run; a mixed directory cannot be compared."
+        )
+    elif commits:
+        print(f"\nall runs from commit {commits[0]}")
 
     pd.set_option("display.width", 160)
     print("\n=== every run ===")
