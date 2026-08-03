@@ -324,3 +324,82 @@ def test_no_gain_path_when_self_modification_is_off():
     assert all(
         p.grad is None or float(p.grad.abs().sum()) == 0 for p in model.modulator.parameters()
     )
+
+
+def test_slow_levels_accumulate_gradients_rather_than_discarding_them():
+    """Frequency separation must be about timescale, not about training budget.
+
+    The first implementation zeroed gradients for levels that were not due, so a
+    period-32 level saw one gradient in 32. That confounds rho with the amount of
+    training, which would have made the Day 10 ratio sweep meaningless: larger rho
+    would lower |BWT| simply by learning less.
+    """
+    import torch
+
+    from nestedric.models.deep_optimizer import LevelScheduledOptimizer
+
+    fast = torch.nn.Parameter(torch.zeros(3))
+    slow = torch.nn.Parameter(torch.zeros(3))
+    opt = LevelScheduledOptimizer(
+        named_parameters={"fast": fast, "slow": slow},
+        parameter_levels={0: ["fast"], 1: ["slow"]},
+        periods=(1, 4),
+        lr=0.1,
+        deep=False,
+    )
+
+    # A constant gradient on every step. After four steps the slow level has fired
+    # once, on the average of four identical gradients -- so it should have moved by
+    # one ordinary step, not by a quarter of one and not by four.
+    for step in range(1, 5):
+        fast.grad = torch.ones(3)
+        slow.grad = torch.ones(3)
+        opt.step(step)
+
+    assert torch.allclose(slow.detach(), torch.full((3,), -0.1), atol=1e-6)
+
+
+def test_accumulated_gradient_is_the_mean_not_the_sum():
+    """A level integrating k gradients acts on their average, not their total.
+
+    Checked on the gradient presented to the optimiser at firing time rather than on
+    the displacement, because Adam normalises step size and would hide the difference.
+    """
+    import torch
+
+    from nestedric.models.deep_optimizer import LevelScheduledOptimizer
+
+    slow = torch.nn.Parameter(torch.zeros(2))
+    opt = LevelScheduledOptimizer(
+        named_parameters={"slow": slow},
+        parameter_levels={0: ["slow"]},
+        periods=(4,),
+        lr=1.0,
+        deep=False,
+    )
+    for step, g in zip(range(1, 5), (1.0, 2.0, 3.0, 4.0), strict=True):
+        slow.grad = torch.full((2,), g)
+        fired = opt.step(step)
+
+    assert fired == [0]  # period 4 fires at step 4
+    # mean of 1,2,3,4 is 2.5; their sum would be 10
+    assert torch.allclose(slow.grad, torch.full((2,), 2.5), atol=1e-6)
+
+
+def test_accumulators_are_reported_in_the_footprint():
+    """Accumulators are real memory this method spends and a baseline does not."""
+    import torch
+
+    from nestedric.models.deep_optimizer import LevelScheduledOptimizer
+
+    slow = torch.nn.Parameter(torch.zeros(100))
+    opt = LevelScheduledOptimizer(
+        named_parameters={"slow": slow},
+        parameter_levels={0: ["slow"]},
+        periods=(8,),
+        lr=0.1,
+        deep=False,
+    )
+    slow.grad = torch.ones(100)
+    opt.step(1)  # not due at step 1 with period 8: accumulator retained
+    assert opt.state_bytes() >= 100 * 4

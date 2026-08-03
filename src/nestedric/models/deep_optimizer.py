@@ -113,6 +113,8 @@ class LevelScheduledOptimizer:
                 if deep
                 else torch.optim.Adam(params, lr=lr, weight_decay=weight_decay)
             )
+        self._accum: dict = {}
+        self._accum_counts: dict[int, int] = {}
         self._base_lrs = {
             level: [g["lr"] for g in opt.param_groups] for level, opt in self.optimizers.items()
         }
@@ -127,20 +129,60 @@ class LevelScheduledOptimizer:
             opt.zero_grad(set_to_none=True)
 
     def step(self, step: int, fast_gain: float = 1.0) -> list[int]:
-        """Step every due level; returns which fired.
+        """Accumulate gradients per level and step every level that is due.
+
+        Gradients arriving between a level's firings are **accumulated and averaged**,
+        not discarded. This is the part that makes frequency separation a statement
+        about timescale rather than about training budget.
+
+        The first implementation set ``p.grad = None`` for levels that were not due, so
+        a level with period 32 saw one gradient in 32 and that one was a single-batch
+        estimate. It therefore received ~1/32 of the total gradient signal, and the
+        Day 7 result reflected it: NestedRIC forgot less than finetune (-0.0093 against
+        -0.0266) while fitting worse than finetune (-0.0861 against -0.0698), which is
+        what underfitting looks like. Worse, it would have invalidated the Day 10 ratio
+        sweep outright -- larger rho would have meant less training, so |BWT| would fall
+        with rho for reasons having nothing to do with the theorem.
+
+        With accumulation, every level sees every gradient; they differ only in how
+        often they act on them and over how long they integrate. That is the quantity
+        Theorem 1 is about.
 
         *fast_gain* scales level 0 only. The gain is emitted by the slow level, so
         scaling the slow level with it would be a feedback loop on itself.
         """
         due = self.due_levels(step)
+
+        for level, params in self.level_params.items():
+            for p in params:
+                if p.grad is None:
+                    continue
+                buffer = self._accum.get(p)
+                if buffer is None:
+                    self._accum[p] = p.grad.detach().clone()
+                else:
+                    buffer.add_(p.grad.detach())
+            self._accum_counts[level] = self._accum_counts.get(level, 0) + 1
+
         for level in due:
             opt = self.optimizers.get(level)
             if opt is None:
                 continue
+            count = max(self._accum_counts.get(level, 1), 1)
+            for p in self.level_params[level]:
+                buffer = self._accum.get(p)
+                # The mean, not the sum: a level that integrates 32 gradients should
+                # take one step of ordinary size along their average, not a step 32
+                # times too large.
+                p.grad = (buffer / count) if buffer is not None else None
             if level == 0 and fast_gain != 1.0:
                 for group, base in zip(opt.param_groups, self._base_lrs[level], strict=True):
                     group["lr"] = base * fast_gain
             opt.step()
+
+            for p in self.level_params[level]:
+                self._accum.pop(p, None)
+            self._accum_counts[level] = 0
 
         for level, params in self.level_params.items():
             if level not in due:
@@ -149,8 +191,12 @@ class LevelScheduledOptimizer:
         return due
 
     def state_bytes(self) -> int:
-        """Optimiser state bytes across levels, for the footprint."""
-        total = 0
+        """Optimiser state bytes across levels, for the footprint.
+
+        Includes the per-level gradient accumulators, which are real memory this
+        method spends and a baseline does not.
+        """
+        total = sum(b.numel() * b.element_size() for b in self._accum.values())
         for opt in self.optimizers.values():
             if isinstance(opt, DeepMomentum):
                 total += opt.state_bytes()
