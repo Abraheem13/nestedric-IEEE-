@@ -138,10 +138,22 @@ class NestedRIC(nn.Module):
         return [i for i, p in enumerate(self.periods) if step % p == 0]
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
-        """Encoder state fused with the memory read."""
+        """Encoder state fused with the memory read, scaled by the slow level's gain.
+
+        The gain enters here as well as on the learning rate, and that is deliberate.
+        Used only as a learning-rate multiplier it is read out with ``float()``, which
+        detaches it: the modulator would receive no gradient and sit at its
+        initialisation for the whole run, making "self-modification" a fixed random
+        constant and its ablation a comparison of nothing against nothing.
+
+        Scaling the recalled memory gives the same scalar a differentiable role, so the
+        task loss trains it, and the learning-rate use becomes a read-out of a quantity
+        that means something. One scalar, two uses, one gradient path.
+        """
         h = self.backbone.encoder(x)
         recalled = self.memory.read(h)
-        return self.fuse(torch.cat([h, recalled], dim=1))
+        gain = self.fast_lr_gain()
+        return self.fuse(torch.cat([h, gain * recalled], dim=1))
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return ``(prediction, action_logits)``, memory-augmented."""
@@ -176,7 +188,7 @@ class NestedRIC(nn.Module):
             "periods": list(self.periods),
             **self.memory.summary(),
             "self_modifying": self.self_modifying,
-            "fast_lr_gain": float(self.fast_lr_gain()),
+            "fast_lr_gain": float(self.fast_lr_gain().detach()),
         }
 
     def state_bytes(self) -> int:

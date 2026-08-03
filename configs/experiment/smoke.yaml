@@ -3,7 +3,7 @@ name: smoke
 streams:
   - configs/stream/smoke_stream.yaml
 model: configs/model/base.yaml
-methods: [finetune, joint, ewc, si, replay, agem, lwf, bilevel, titans]
+methods: [finetune, joint, replay, titans, bilevel, nestedric]
 seeds: [0]
 processed_dir: data/processed
 device: auto

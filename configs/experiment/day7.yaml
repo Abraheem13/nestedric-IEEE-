@@ -1,0 +1,24 @@
+# Day 7 gate, raised from the plan's original bar.
+#
+# docs/PLAN.md asks that NestedRIC "beats finetune on at least one stream". Day 4
+# measured replay taking cross-dataset |BWT| from 0.0266 to 0.0053 at the same 4 MB
+# budget, so clearing finetune now proves nothing. The gate is: beat replay on
+# cross-dataset at equal memory.
+#
+# The four comparators are chosen to isolate the claim rather than to flatter it:
+#   replay    strongest baseline, same bytes
+#   titans    same memory, NO frequency separation   -> is the tiering doing anything?
+#   bilevel   frequency separation, NO memory        -> is the memory doing anything?
+#   joint     oracle ceiling
+name: day7
+streams:
+  - configs/stream/cross_dataset.yaml
+  - configs/stream/slice_shift.yaml
+model: configs/model/base.yaml
+methods: [finetune, joint, replay, titans, bilevel, nestedric]
+seeds: [0, 1]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+output_dir: results/runs/day7

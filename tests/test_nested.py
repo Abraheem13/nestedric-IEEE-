@@ -124,7 +124,7 @@ def test_lr_gain_is_bounded():
     """An unbounded gain lets the model score on retention by refusing to learn."""
     model = _model()
     model.memory.blocks[-1].write(torch.randn(4, 16) * 50, torch.randn(4, 16) * 50)
-    gain = float(model.fast_lr_gain())
+    gain = float(model.fast_lr_gain().detach())
     assert 0.5 <= gain <= 1.5
 
 
@@ -196,3 +196,131 @@ def test_summary_carries_what_the_theory_needs():
     assert s["periods"] == [1, 8]
     assert s["separation_ratios"] == [8.0]
     assert "fast_lr_gain" in s and "occupancy" in s
+
+
+# ------------------------------------------------------------ NestedRIC as a Method
+
+
+def _method(**overrides):
+    from nestedric.methods import build_method
+
+    cfg = {
+        "n_levels": 2,
+        "periods": [1, 8],
+        "self_modifying": True,
+        "memory": {"budget_mb": 0.2},
+        "deep_optimizer": {"enabled": True, "memory_depth": 2},
+        "optimizer": {"type": "adam", "lr": 0.01},
+    }
+    cfg.update(overrides)
+    return build_method("nestedric", build_backbone(MODEL_CFG, in_dim=19), cfg)
+
+
+def test_nestedric_takes_a_step_and_logs_its_schedule():
+    method = _method()
+    logs = method.observe(_batch(), step=0)
+    assert logs["levels_fired"] == 2  # step 0: everything is due
+    assert logs["levels_written"] == 2
+    logs = method.observe(_batch(), step=1)
+    assert logs["levels_fired"] == 1  # only the fast level
+
+
+def test_nestedric_shares_the_backbone_capacity():
+    """Design rule 1: the trunk must be the baselines' trunk."""
+    from nestedric.methods import build_method
+
+    baseline = build_backbone(MODEL_CFG, in_dim=19).n_parameters()
+    backbone = build_backbone(MODEL_CFG, in_dim=19)
+    build_method("nestedric", backbone, {"memory": {"budget_mb": 0.2}})
+    assert backbone.n_parameters() == baseline
+
+
+def test_nestedric_declares_memory_and_optimiser_bytes():
+    method = _method()
+    method.observe(_batch(), step=0)
+    fp = method.footprint()
+    assert fp["memory_bytes"] > 0
+    assert fp["optimizer_bytes"] > 0
+    assert fp["total_bytes"] == fp["param_bytes"] + fp["memory_bytes"] + fp["optimizer_bytes"]
+
+
+def test_memory_persists_across_environments():
+    """Carrying structure between environments is the point; only the counter resets."""
+    method = _method()
+    method.observe(_batch(), step=0)
+    writes_before = [int(b.writes.item()) for b in method.model.memory.blocks]
+    method.begin_environment(None, 1)
+    assert [int(b.writes.item()) for b in method.model.memory.blocks] == writes_before
+    assert method._step_in_env == 0
+
+
+def test_realised_ratio_is_reported_not_assumed():
+    method = _method(periods=[1, 8])
+    for step in range(16):
+        method.observe(_batch(), step=step)
+    summary = method.state_summary()
+    assert summary["realised_ratios"] == [8.0]
+    assert summary["separation_ratios"] == [8.0]
+
+
+def test_single_level_config_runs_and_reports_no_separation():
+    method = _method(n_levels=1, periods=[1])
+    logs = method.observe(_batch(), step=0)
+    assert logs["levels_fired"] == 1
+    assert method.state_summary()["separation_ratios"] == []
+
+
+def test_self_modification_can_be_switched_off():
+    method = _method(self_modifying=False)
+    logs = method.observe(_batch(), step=0)
+    assert logs["lr_gain"] == 1.0
+
+
+def test_deep_optimizer_can_be_switched_off():
+    from nestedric.models.deep_optimizer import DeepMomentum
+
+    method = _method(deep_optimizer={"enabled": False})
+    assert not any(isinstance(o, DeepMomentum) for o in method.optimizer.optimizers.values())
+
+
+def test_nestedric_is_byte_comparable_with_replay():
+    """The comparison that decides the paper has to be at equal bytes."""
+    from nestedric.methods import build_method
+
+    nested = _method(memory={"budget_mb": 1.0})
+    nested.observe(_batch(), step=0)
+
+    replay = build_method("replay", build_backbone(MODEL_CFG, in_dim=19), {"memory_budget_mb": 1.0})
+    replay.observe(_batch(), step=0)
+
+    # NestedRIC also carries optimiser memory, which replay does not; the memory
+    # itself is what must match the budget.
+    assert nested.model.state_bytes() <= 1.05e6
+    assert replay.extra_state_bytes() <= 1.05e6
+
+
+def test_self_modification_head_actually_receives_gradient():
+    """Used only as an lr multiplier the gain is detached, so the modulator would
+    never train and the ablation would compare a fixed random constant against nothing.
+    """
+    model = _model(periods=(1, 4), self_modifying=True)
+    model.memory.blocks[-1].write(torch.randn(4, 16), torch.randn(4, 16))
+
+    x, y, _ = _batch()
+    pred, _ = model(x)
+    torch.nn.functional.mse_loss(pred, y).backward()
+
+    grads = [p.grad for p in model.modulator.parameters() if p.grad is not None]
+    assert grads, "modulator received no gradient at all"
+    assert any(float(g.abs().sum()) > 0 for g in grads)
+
+
+def test_no_gain_path_when_self_modification_is_off():
+    model = _model(self_modifying=False)
+    model.memory.blocks[-1].write(torch.randn(4, 16), torch.randn(4, 16))
+    x, y, _ = _batch()
+    pred, _ = model(x)
+    torch.nn.functional.mse_loss(pred, y).backward()
+    assert all(
+        p.grad is None or float(p.grad.abs().sum()) == 0 for p in model.modulator.parameters()
+    )

@@ -136,13 +136,42 @@ class SgdMethod:
         """
         return 0
 
+    def optimizer_state_bytes(self) -> int:
+        """Bytes held by the optimiser itself.
+
+        Reported for every method, not just the ones that volunteer it. Adam keeps two
+        states per parameter and says nothing; DeepMomentum keeps `memory_depth` and
+        was reporting them. Counting one and not the other made NestedRIC look like it
+        stored 45% more than replay when the memories were identical -- an artefact of
+        the accounting, which is exactly the kind of thing that turns into a wrong
+        column in a paper.
+        """
+        opt = getattr(self, "optimizer", None)
+        if opt is None or not hasattr(opt, "param_groups"):
+            return 0
+        total = 0
+        for group in opt.param_groups:
+            for p in group["params"]:
+                for value in opt.state.get(p, {}).values():
+                    if hasattr(value, "numel"):
+                        total += value.numel() * value.element_size()
+        return total
+
     def footprint(self) -> dict:
         param_bytes = sum(p.numel() * p.element_size() for p in self.model.parameters())
+        memory_bytes = self.extra_state_bytes()
+        optimizer_bytes = self.optimizer_state_bytes()
         return {
             "params": sum(p.numel() for p in self.model.parameters()),
             "param_bytes": param_bytes,
-            "extra_state_bytes": self.extra_state_bytes(),
-            "total_bytes": param_bytes + self.extra_state_bytes(),
+            # The byte-matched quantity (design rule 2): what the method chooses to
+            # remember. Optimiser state is a consequence of the optimiser, not of the
+            # continual-learning strategy, so it is reported beside it rather than
+            # inside it.
+            "memory_bytes": memory_bytes,
+            "optimizer_bytes": optimizer_bytes,
+            "extra_state_bytes": memory_bytes,
+            "total_bytes": param_bytes + memory_bytes + optimizer_bytes,
         }
 
     def state_summary(self) -> dict[str, Any]:

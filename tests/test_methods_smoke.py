@@ -8,8 +8,19 @@ torch = pytest.importorskip("torch")
 from nestedric.methods import build_method, load_all  # noqa: E402
 from nestedric.models.backbone import build_backbone  # noqa: E402
 
-IMPLEMENTED = ["finetune", "joint", "ewc", "si", "replay", "agem", "lwf", "bilevel", "titans"]
-PENDING = ["nestedric"]  # Days 5-7
+IMPLEMENTED = [
+    "finetune",
+    "joint",
+    "ewc",
+    "si",
+    "replay",
+    "agem",
+    "lwf",
+    "bilevel",
+    "titans",
+    "nestedric",
+]
+PENDING: list[str] = []  # every method is implemented as of Day 7
 
 MODEL_CFG = {
     "encoder": {"type": "gru", "hidden": 16, "n_layers": 1, "dropout": 0.0},
@@ -29,7 +40,9 @@ def _batch(n: int = 8, window: int = 6, in_dim: int = 19):
 @pytest.mark.parametrize("name", IMPLEMENTED)
 def test_method_takes_a_step(name):
     model = build_backbone(MODEL_CFG, in_dim=19)
-    method = build_method(name, model, {"optimizer": {"type": "adam", "lr": 1e-3}})
+    method = build_method(
+        name, model, {"optimizer": {"type": "adam", "lr": 1e-3}, "memory": {"budget_mb": 0.2}}
+    )
     before = [p.detach().clone() for p in model.parameters()]
 
     logs = method.observe(_batch(), step=0)
@@ -42,10 +55,10 @@ def test_method_takes_a_step(name):
 @pytest.mark.parametrize("name", IMPLEMENTED)
 def test_method_reports_footprint_in_bytes(name):
     model = build_backbone(MODEL_CFG, in_dim=19)
-    method = build_method(name, model, {})
+    method = build_method(name, model, {"memory": {"budget_mb": 0.2}})
     fp = method.footprint()
     assert fp["params"] > 0
-    assert fp["total_bytes"] == fp["param_bytes"] + fp["extra_state_bytes"]
+    assert fp["total_bytes"] == fp["param_bytes"] + fp["memory_bytes"] + fp["optimizer_bytes"]
 
 
 @pytest.mark.parametrize("name", IMPLEMENTED)
@@ -53,7 +66,7 @@ def test_every_method_shares_the_same_backbone_size(name):
     """Design rule 1: differences must come from the learning rule, not capacity."""
     model = build_backbone(MODEL_CFG, in_dim=19)
     reference = build_backbone(MODEL_CFG, in_dim=19).n_parameters()
-    build_method(name, model, {})
+    build_method(name, model, {"memory": {"budget_mb": 0.2}})
     assert model.n_parameters() == reference
 
 
@@ -111,12 +124,12 @@ def test_joint_declares_it_wants_the_union_of_environments():
     assert getattr(method, "wants_joint_data", False) is True
 
 
-@pytest.mark.parametrize("name", PENDING)
-def test_pending_methods_are_registered_but_unimplemented(name):
-    assert name in load_all()
-    model = build_backbone(MODEL_CFG, in_dim=19)
-    with pytest.raises(NotImplementedError):
-        build_method(name, model, {})
+def test_every_planned_method_is_registered():
+    """All ten methods in configs/experiment/main.yaml must exist and build."""
+    registry = load_all()
+    for name in IMPLEMENTED:
+        assert name in registry, name
+    assert not PENDING
 
 
 def test_memory_methods_are_byte_matched():
@@ -137,3 +150,29 @@ def test_memory_methods_are_byte_matched():
     # tolerance that matters, against the 4,500% gap this test was written for.
     assert largest / smallest < 1.1, budgets
     assert largest <= 1.05e6, budgets
+
+
+def test_memory_and_optimiser_bytes_are_reported_separately():
+    """Byte-matching compares what a method chooses to remember, not its optimiser.
+
+    Counting DeepMomentum's states inside NestedRIC's footprint while ignoring Adam's
+    inside every baseline's made NestedRIC look 45% heavier at identical memory.
+    """
+    budgets = {}
+    for name, cfg in (
+        ("replay", {"memory_budget_mb": 1.0}),
+        ("titans", {"memory_budget_mb": 1.0}),
+        ("nestedric", {"memory": {"budget_mb": 1.0}, "periods": [1, 8]}),
+    ):
+        model = build_backbone(MODEL_CFG, in_dim=19)
+        method = build_method(name, model, cfg)
+        for step in range(3):
+            method.observe(_batch(n=4), step=step)
+        fp = method.footprint()
+        budgets[name] = fp
+        assert fp["total_bytes"] == fp["param_bytes"] + fp["memory_bytes"] + fp["optimizer_bytes"]
+
+    memories = [fp["memory_bytes"] for fp in budgets.values()]
+    assert max(memories) / min(memories) < 1.1, {k: v["memory_bytes"] for k, v in budgets.items()}
+    # Every method has optimiser state; none may report zero while others report theirs.
+    assert all(fp["optimizer_bytes"] > 0 for fp in budgets.values())
