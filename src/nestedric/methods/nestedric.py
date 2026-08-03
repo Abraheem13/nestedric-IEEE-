@@ -56,6 +56,7 @@ class NestedRICMethod(SgdMethod):
             memory_budget_bytes=budget,
             self_modifying=bool(cfg.get("self_modifying", True)),
             write_rate=float(memory_cfg.get("write_rate", 0.1)),
+            level_assignment=str(cfg.get("level_assignment", "memory")),
         ).to(device)
 
         deep_cfg = cfg.get("deep_optimizer", {}) or {}

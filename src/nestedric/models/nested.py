@@ -66,6 +66,7 @@ class NestedRIC(nn.Module):
         memory_budget_bytes: int = 4_000_000,
         self_modifying: bool = True,
         write_rate: float = 0.1,
+        level_assignment: str = "memory",
     ) -> None:
         super().__init__()
         periods = tuple(int(p) for p in periods)[:n_levels]
@@ -99,33 +100,43 @@ class NestedRIC(nn.Module):
             nn.Linear(hidden, hidden // 4), nn.GELU(), nn.Linear(hidden // 4, 1)
         )
 
+        self.level_assignment = level_assignment
         self.parameter_levels = self._assign_levels()
 
     def _assign_levels(self) -> dict[int, list[str]]:
-        """Assign parameter groups to levels: later layers are faster.
+        """Assign parameter groups to levels.
 
-        The heads and the final encoder layer track the current environment and belong
-        to level 0. Earlier encoder layers hold representations that should survive a
-        change of allocation regime, so they are updated at the slower periods. With one
-        level everything is fast, which is exactly the degenerate case the theorem must
-        recover.
+        ``memory`` (default): the backbone trains at level 0 like every baseline, and
+        only the memory gates and the self-modification modulator sit on slow levels.
+        The frequency separation lives in the Continuum Memory System, which is what the
+        paper claims -- a frequency-tiered *memory*.
+
+        ``depth``: earlier encoder layers are also placed on slower levels, on the
+        argument that early representations should survive a change of allocation
+        regime. Retained as a Day 10 ablation, not as the default.
+
+        The default changed after measurement. Under ``depth``, 27% of parameters --
+        including the first GRU layer, which reads the raw KPIs -- took one Adam step
+        per 32, so NestedRIC underfit: cross-dataset avg_perf -0.0862 against finetune's
+        -0.0698 and replay's -0.0528, with BWT of -0.0095 that was partly just failing
+        to learn. Adam is scale-invariant, so this is a deficit in the *number* of
+        steps, which accumulating gradients between firings does not repair.
         """
         groups: dict[int, list[str]] = {i: [] for i in range(self.n_levels)}
+        mode = self.level_assignment
         n_rnn_layers = self.backbone.encoder.rnn.num_layers
 
         for name, _ in self.named_parameters():
-            if name.startswith("backbone.encoder.rnn"):
-                # torch names GRU weights ..._l0, ..._l1: layer 0 is closest to input.
+            if name.startswith("memory") or name.startswith("modulator"):
+                level = self.n_levels - 1
+            elif mode == "depth" and name.startswith("backbone.encoder.rnn"):
                 layer = 0
                 for suffix in range(n_rnn_layers):
                     if name.endswith(f"_l{suffix}"):
                         layer = suffix
-                depth_from_output = n_rnn_layers - 1 - layer
-                level = min(depth_from_output, self.n_levels - 1)
-            elif name.startswith("memory") or name.startswith("modulator"):
-                level = self.n_levels - 1  # memory gates and the modulator are slow
+                level = min(n_rnn_layers - 1 - layer, self.n_levels - 1)
             else:
-                level = 0  # heads, layer norm, fusion: fast
+                level = 0
             groups[level].append(name)
         return groups
 

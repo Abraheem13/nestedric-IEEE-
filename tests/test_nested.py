@@ -403,3 +403,54 @@ def test_accumulators_are_reported_in_the_footprint():
     slow.grad = torch.ones(100)
     opt.step(1)  # not due at step 1 with period 8: accumulator retained
     assert opt.state_bytes() >= 100 * 4
+
+
+def test_default_level_assignment_leaves_the_backbone_fast():
+    """The frequency separation belongs to the memory, not to the network weights.
+
+    Under the old 'depth' default, 27% of parameters -- including the first GRU layer,
+    which reads the raw KPIs -- took one Adam step per 32. Adam is scale-invariant, so
+    that is a deficit in the number of steps, and it made NestedRIC underfit rather than
+    retain: cross-dataset avg_perf -0.0862 against finetune's -0.0698.
+    """
+    from nestedric.models.backbone import build_backbone
+    from nestedric.models.nested import NestedRIC
+
+    cfg = {
+        "encoder": {"type": "gru", "hidden": 32, "n_layers": 2, "dropout": 0.0},
+        "heads": {"prediction": {"out_dim": 2}, "policy": {"n_actions": 3}},
+    }
+    model = NestedRIC(
+        backbone=build_backbone(cfg, in_dim=19),
+        n_levels=2,
+        periods=(1, 32),
+        memory_budget_bytes=100_000,
+    )
+    params = dict(model.named_parameters())
+    total = sum(p.numel() for p in params.values())
+    slow = sum(params[n].numel() for n in model.parameter_levels[1])
+
+    assert model.level_assignment == "memory"
+    assert slow / total < 0.05, "the backbone must not be trained at the slow period"
+    assert all(
+        n.startswith(("memory", "modulator")) for n in model.parameter_levels[1]
+    ), model.parameter_levels[1]
+
+
+def test_depth_assignment_is_still_available_as_an_ablation():
+    from nestedric.models.backbone import build_backbone
+    from nestedric.models.nested import NestedRIC
+
+    cfg = {
+        "encoder": {"type": "gru", "hidden": 32, "n_layers": 2, "dropout": 0.0},
+        "heads": {"prediction": {"out_dim": 2}, "policy": {"n_actions": 3}},
+    }
+    model = NestedRIC(
+        backbone=build_backbone(cfg, in_dim=19),
+        n_levels=2,
+        periods=(1, 32),
+        memory_budget_bytes=100_000,
+        level_assignment="depth",
+    )
+    slow = model.parameter_levels[1]
+    assert any(n.startswith("backbone.encoder.rnn") for n in slow)
