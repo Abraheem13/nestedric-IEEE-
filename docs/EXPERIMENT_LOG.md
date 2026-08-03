@@ -143,3 +143,57 @@ feasible. Extra state: replay 4.00 MB, EWC 1.52 MB, finetune/joint 0.
   premise examined.
 
 **Tomorrow (Day 5):** Continuum Memory System.
+
+---
+
+## Day 4 (revised) - 2026-08-03
+
+**This supersedes the Day 4 entry above, which was wrong.** That entry reported
+sched-shift as the strongest forgetting stream. It was confounded, and the runs behind
+part of it were numerically broken. Both are documented here rather than edited away.
+
+**Three faults found and fixed:**
+
+1. *sched-shift was half a cross-dataset stream.* `source: [coloran, commag]` put a
+   ColO-RAN -> COMMAG boundary in the middle. Per-transition transfer gap: 87.6 at that
+   boundary against 0.47-4.11 everywhere else. Within-testbed controls give BWT -0.0021
+   (ColO-RAN) and +0.0006 (COMMAG). Scheduling policy does not cause forgetting.
+
+2. *A scaling failure diverged every COMMAG-heavy run.* `dl_buffer_bytes` spans 0-1e9;
+   standardised against source-environment constants it reached 127.9 sigma with its p99
+   also at 127.7 -- the whole distribution had moved. It is also a prediction target, so
+   squared errors near 1.6e4 diverged the run (joint avg_perf -37.97, seed std 52.7,
+   BWT +5.90). Fixed by log1p on heavy-tailed non-negative KPIs before standardisation.
+
+3. *Nothing objected to any of it.* A diverged run wrote a normal-looking results.json
+   and the summary labelled BWT +5.90 as "FORGETS", because the verdict tested |BWT|.
+   Now: the trainer raises on non-finite or >100 loss, every result carries a
+   trustworthiness block, and only negative BWT counts as forgetting.
+
+**Numbers (all post-fix, 2 seeds each):**
+
+| stream | what changes | finetune BWT | seeds | replay BWT |
+|---|---|---|---|---|
+| cross-dataset | testbed: 50 PRB -> 15 PRB | **-0.0266** | -0.0261, -0.0270 | -0.0053 |
+| slice-shift | RBG allocation (tr config) | **-0.0207** | -0.0250, -0.0164 | -0.0023 |
+| cyclic | environments recur | -0.0084 | -0.0085, -0.0082 | -0.0064 |
+| sched-shift | scheduling discipline | -0.0021 | -0.0027, -0.0015 | -- |
+| radio-shift | distance, mobility | +0.0012 | +0.0019, +0.0005 | -0.0040 |
+
+joint beats finetune on every stream that forgets. Near-RT: all methods p50 ~0.83-0.89
+ms against a 10 ms budget.
+
+**The finding.** Forgetting appears when the **resource-allocation regime** changes --
+the PRB budget (cross-dataset) or the RBG split (slice-shift). It does not appear when
+the scheduling discipline changes or when radio conditions change. Day 1 predicted the
+opposite, having promoted COMMAG precisely for its mobility and distance axes.
+
+**The bar for NestedRIC.** Replay already removes 80% of cross-dataset forgetting
+(-0.0266 -> -0.0053) at a 4 MB byte budget. NestedRIC must beat that at equal bytes.
+This is a much harder target than beating finetune, and it is the honest comparison.
+
+**Note on cyclic:** its low BWT is by construction -- environments recur, so early
+environments were revisited recently. "Negligible" is not a null result there; the gate
+script's framing does not fit that stream and should not be read as one.
+
+**Tomorrow (Day 5):** Continuum Memory System.
