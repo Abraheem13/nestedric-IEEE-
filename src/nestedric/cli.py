@@ -130,6 +130,16 @@ def _cmd_train(cfg: dict, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_ablate(cfg: dict, args: argparse.Namespace) -> int:
+    """Sweep each ablation axis around the default configuration."""
+    from nestedric.engine.runner import run_ablation
+
+    out_dir = Path(cfg.get("output_dir", "results/runs/ablation"))
+    written = run_ablation(cfg, out_dir)
+    print(f"\nwrote {len(written)} run(s) under {out_dir}")
+    return 0
+
+
 def _not_yet(day: str):
     """Placeholder dispatcher for sub-commands scheduled for a later day."""
 
@@ -144,7 +154,7 @@ COMMANDS = {
     "stream": _cmd_stream,
     "train": _cmd_train,
     "evaluate": _not_yet("Day 4"),
-    "ablate": _not_yet("Day 10"),
+    "ablate": _cmd_ablate,
     "figures": _not_yet("Day 13"),
 }
 

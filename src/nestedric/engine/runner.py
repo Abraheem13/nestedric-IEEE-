@@ -213,3 +213,54 @@ def run_sweep(cfg: dict, out_dir: Path) -> list[Path]:
                 print(f"==> {name} / {method_name} / seed {seed}")
                 written.append(run_experiment(one, run_dir))
     return written
+
+
+def run_ablation(cfg: dict, out_dir: Path) -> list[Path]:
+    """Sweep one axis at a time around the default configuration.
+
+    A *one-at-a-time* sweep, not a full grid. Two reasons: the full cross product of the
+    Day 10 axes is 864 cells, which does not fit the schedule; and an ablation answers
+    "what does this component contribute to the method as configured", which is a
+    question about single deviations from the default. Interactions worth reporting get
+    their own explicit cells rather than being buried in a grid nobody can read.
+
+    Every cell runs the same code path as the headline runs, differing from the default
+    in exactly one key. An ablation that takes a different branch is not an ablation.
+    """
+    from nestedric.utils.config import apply_config_overrides, load_config
+
+    method_name = cfg.get("method", "nestedric")
+    base_method = load_config(f"configs/method/{method_name}.yaml")
+    streams = cfg.get("streams") or [cfg["stream"]]
+    seeds = cfg.get("seeds", [0])
+    grid = cfg.get("grid", {})
+
+    written: list[Path] = []
+    for stream_path in streams:
+        stream_name = Path(str(stream_path)).stem
+        for axis, values in grid.items():
+            for value in values:
+                try:
+                    method_cfg = apply_config_overrides(base_method, {axis: value})
+                except Exception as exc:  # a typo in the grid must not run 40 cells first
+                    raise KeyError(f"ablation axis {axis!r} is not a key of {method_name}: {exc}")
+
+                label = f"{axis.replace('.', '_')}={value}".replace(" ", "")
+                for seed in seeds:
+                    run_dir = out_dir / stream_name / label / f"seed{seed}"
+                    if (run_dir / "results.json").exists():
+                        print(f"    skip (done) {label} seed {seed}")
+                        written.append(run_dir / "results.json")
+                        continue
+                    one = {
+                        **cfg,
+                        "stream": stream_path,
+                        "method": method_cfg,
+                        "method_name": method_name,
+                        "seed": seed,
+                        "ablation_axis": axis,
+                        "ablation_value": value,
+                    }
+                    print(f"==> {stream_name} / {label} / seed {seed}")
+                    written.append(run_experiment(one, run_dir))
+    return written

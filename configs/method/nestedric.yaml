@@ -8,6 +8,14 @@ n_levels: 2
 periods: [1, 32]          # tau_f, tau_s  (separation ratio = 32)
 self_modifying: true
 
+# Which parameters sit on slow levels. 'memory' keeps the backbone at level 0, training
+# exactly like every baseline, and tiers only the memory gates and the modulator -- the
+# frequency separation belongs to the Continuum Memory System. 'depth' additionally puts
+# early encoder layers on slow periods; measured on Day 7b, that put 27% of parameters
+# (including the first GRU layer) on one Adam step per 32 and made the method underfit.
+# Kept as an ablation axis, not a default.
+level_assignment: memory
+
 # --- continuum memory system ----------------------------------------------------
 memory:
   budget_mb: 4.0          # byte-matched against replay and titans
@@ -19,5 +27,6 @@ deep_optimizer:
   enabled: true
   memory_depth: 2
 
-# Ablation axes (Day 10): n_levels in {1,2,3}; periods ratio in {1,4,16,32,64,128};
-# memory.capacity in {64,256,512,2048}; self_modifying in {true,false}.
+# Ablation axes (Day 10, see configs/experiment/ablation.yaml): periods ratio in
+# {1,4,16,32,64,128}; n_levels in {1,2,3} at fixed total bytes; self_modifying;
+# deep_optimizer.enabled; level_assignment in {memory, depth}.
