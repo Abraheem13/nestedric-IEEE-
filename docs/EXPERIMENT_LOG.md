@@ -252,3 +252,75 @@ beating the state of the art is available from these numbers.
 
 **Tomorrow:** ablations (the ratio sweep is the theorem's empirical content), then the
 main benchmark at five seeds.
+
+---
+
+## Day 10 - 2026-08-03
+
+**Planned:** Ablations. Key gate from docs/PLAN.md: "does performance vary
+monotonically-ish with the separation ratio? This is the empirical content of the
+theorem."
+
+**Done:** 15 cells x 3 seeds on cross-dataset. `results/runs/ablation/`,
+`results/tables/ablation.csv`.
+
+**Numbers -- the ratio sweep:**
+
+| rho | BWT | 95% CI | vs default | p |
+|---|---|---|---|---|
+| 1 | -0.0088 | [-0.0213, +0.0020] | +0.0015 | 0.50 |
+| 4 | -0.0096 | [-0.0206, +0.0004] | +0.0007 | 0.50 |
+| 16 | -0.0099 | [-0.0203, -0.0000] | +0.0004 | 0.24 |
+| 32 | -0.0103 | [-0.0205, -0.0002] | -- | -- |
+| 64 | -0.0105 | [-0.0207, -0.0003] | -0.0002 | 0.24 |
+| 128 | -0.0073 | [-0.0162, +0.0007] | +0.0030 | 0.24 |
+
+**THE KEY GATE FAILS.** The sweep spans 0.003 across a 128-fold change in rho, every
+interval covers every other, nothing is significant. rho = 1 -- the degenerate
+single-timescale case Theorem 1 must recover as the *worst* case -- performs the same as
+rho = 32.
+
+Other axes, same story: self_modifying off vs on differs by 0.0002 (p = 0.50);
+n_levels 1/2/3 are indistinguishable; deep_optimizer and level_assignment differences do
+not survive either.
+
+**Surprises:**
+
+1. **Seed dominates configuration by 20x.** Every cell shows the same pattern: seed 0
+   about -0.000, seed 1 about -0.010, seed 2 about -0.021. The seed sets the train/eval
+   trace split, so most of the measured variation is which traces landed in the eval
+   set. Configuration effects are ~0.001 against seed effects of ~0.02. More seeds
+   narrow the CI on a paired difference but cannot manufacture an effect that is not
+   there.
+
+2. **The Day 7 interaction reading was wrong.** I attributed NestedRIC's -0.0052 (vs
+   titans' -0.0263) to tiering plus memory. But rho = 1 here is two memory blocks with
+   no separation whatsoever, and it scores the same as rho = 32. The gap to titans is
+   therefore the memory *implementation* -- gated blending into similarity-selected
+   slots with soft-attention reads, versus a momentum memory -- not the frequency
+   separation. That is an engineering difference, not this paper's thesis.
+
+**Decisions taken:**
+
+- **Contingency 2 fires** (docs/PLAN.md): the paper is reframed around the negative
+  result. Frequency separation does not reduce forgetting on real O-RAN KPI traces at
+  any ratio from 1 to 128, at matched bytes, on the stream where forgetting is largest.
+- Theorem 1 may still be provable, but its predicted effect is below the noise floor at
+  the drift levels these public traces exhibit. The honest statement of that is a
+  contribution: it tells the field where the mechanism cannot help.
+- The title claim "provably lower catastrophic forgetting than any single-timescale
+  continual-learning xApp" is not supported and must go. Replay is single-timescale and
+  matches NestedRIC; rho = 1 is single-timescale and matches rho = 32.
+
+**What the paper still has, all measured:**
+1. O-RAN-CL: the benchmark, five streams, frozen splits, fold-level protocol.
+2. Which O-RAN reconfigurations cause forgetting (allocation regime) and which do not
+   (scheduling discipline, radio conditions) -- with two clean nulls and a mechanism.
+3. A negative result on frequency separation with the ablation that establishes it.
+4. The bound, presented as theory with its empirical predictions tested and not
+   confirmed at achievable drift, which is where drift injection (Day 10 contingency)
+   becomes the natural next experiment rather than a fallback.
+
+**Tomorrow:** drift injection -- does frequency separation help once drift is large
+enough? That is the sharper question the plan anticipated, and it is now the paper's
+central experiment rather than a contingency.
