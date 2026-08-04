@@ -196,3 +196,26 @@ def test_prepare_raises_when_nothing_parses(tmp_path: Path):
     (root / "junk" / "notes.txt").write_text("no metrics here")
     with pytest.raises(RuntimeError, match="no parseable metrics files"):
         C.prepare(root, tmp_path / "processed", dataset="coloran")
+
+
+def test_a_crashed_run_does_not_poison_its_directory(tmp_path: Path, monkeypatch):
+    """A lock that outlives its process turns one crash into a dead run directory.
+
+    The first ablation sweep died on a ValueError after claiming its directory; every
+    later attempt then failed against a pid that had not existed for hours.
+    """
+    from nestedric.engine import runner
+
+    out = tmp_path / "run"
+
+    def boom(cfg, out_dir):
+        raise ValueError("synthetic failure")
+
+    monkeypatch.setattr(runner, "_run_experiment_locked", boom)
+    with pytest.raises(ValueError, match="synthetic"):
+        runner.run_experiment({}, out)
+
+    assert not (out / ".running").exists(), "lock survived a failed run"
+    # And the directory is usable again.
+    with pytest.raises(ValueError, match="synthetic"):
+        runner.run_experiment({}, out)

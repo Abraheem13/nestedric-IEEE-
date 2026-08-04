@@ -85,6 +85,17 @@ class RunInProgress(RuntimeError):
     """Another process is already writing this run directory."""
 
 
+def _pid_alive(pid: int) -> bool:
+    """Whether a process with *pid* still exists (POSIX; signal 0 tests existence)."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists but is not ours
+    return True
+
+
 def _claim(out_dir: Path, force: bool = False) -> Path:
     """Create the run directory now and mark it in progress.
 
@@ -98,10 +109,17 @@ def _claim(out_dir: Path, force: bool = False) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     lock = out_dir / ".running"
     if lock.exists() and not force:
-        raise RunInProgress(
-            f"{out_dir} is already being written by pid {lock.read_text().strip()}. "
-            "Stop that process, or delete the directory to start over."
-        )
+        holder = lock.read_text().strip()
+        # A crashed run leaves its lock behind. Without this check the directory is
+        # poisoned permanently and every later attempt fails with a pid that has not
+        # existed for hours -- which is exactly what happened to the first ablation
+        # sweep after it died on a ValueError.
+        if holder.isdigit() and _pid_alive(int(holder)):
+            raise RunInProgress(
+                f"{out_dir} is already being written by pid {holder}, which is still "
+                "running. Stop that process, or delete the directory to start over."
+            )
+        print(f"    reclaiming stale lock from pid {holder or '?'} (no such process)")
     lock.write_text(f"{os.getpid()}\n")
     return lock
 
@@ -109,6 +127,15 @@ def _claim(out_dir: Path, force: bool = False) -> Path:
 def run_experiment(cfg: dict, out_dir: Path, force: bool = False) -> Path:
     """Run one (method, stream, seed) experiment; write results.json."""
     lock = _claim(out_dir, force)
+    try:
+        return _run_experiment_locked(cfg, out_dir)
+    finally:
+        # Released whatever happens. A lock that outlives its process turns one crash
+        # into a permanently unusable run directory.
+        lock.unlink(missing_ok=True)
+
+
+def _run_experiment_locked(cfg: dict, out_dir: Path) -> Path:
     seed = int(cfg.get("seed", 0))
     set_seed(seed)
 
@@ -187,7 +214,6 @@ def run_experiment(cfg: dict, out_dir: Path, force: bool = False) -> Path:
 
     (out_dir / "results.json").write_text(json.dumps(results, indent=2, default=str))
     (out_dir / "config.json").write_text(json.dumps(cfg, indent=2, default=str))
-    lock.unlink(missing_ok=True)
     return out_dir / "results.json"
 
 

@@ -29,6 +29,26 @@ from nestedric.models.deep_optimizer import LevelScheduledOptimizer
 from nestedric.models.nested import NestedRIC
 
 
+def _resolve_periods(periods: tuple[int, ...], n_levels: int) -> tuple[int, ...]:
+    """Fit a period list to *n_levels*, extending geometrically if it is too short.
+
+    The n_levels ablation varies depth while ``periods`` stays at its default of
+    (1, 32), so a three-level cell would otherwise be handed two periods. Extending by
+    the last observed ratio keeps the separation ratio constant as depth grows, which
+    is what makes the ablation a test of depth rather than of depth confounded with a
+    changed ratio.
+    """
+    periods = tuple(int(p) for p in periods)
+    if n_levels <= len(periods):
+        return periods[:n_levels]
+
+    ratio = (periods[-1] / periods[-2]) if len(periods) >= 2 and periods[-2] else 32.0
+    extended = list(periods)
+    while len(extended) < n_levels:
+        extended.append(max(int(round(extended[-1] * ratio)), extended[-1] + 1))
+    return tuple(extended)
+
+
 @register("nestedric")
 class NestedRICMethod(SgdMethod):
     """Proposed method. Ablation axes are all exposed through ``cfg``."""
@@ -41,7 +61,7 @@ class NestedRICMethod(SgdMethod):
         self.policy_weight = float(cfg.get("policy_weight", 0.5))
 
         n_levels = int(cfg.get("n_levels", 2))
-        periods = tuple(cfg.get("periods", (1, 32)))[:n_levels]
+        periods = _resolve_periods(tuple(cfg.get("periods", (1, 32))), n_levels)
         memory_cfg = cfg.get("memory", {}) or {}
         # The budget may be stated under memory.budget_mb or at the top level; both
         # resolve to the same shared allowance replay and A-GEM are held to.
