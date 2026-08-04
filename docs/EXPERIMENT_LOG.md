@@ -197,3 +197,58 @@ environments were revisited recently. "Negligible" is not a null result there; t
 script's framing does not fit that stream and should not be read as one.
 
 **Tomorrow (Day 5):** Continuum Memory System.
+
+---
+
+## Day 7 - 2026-08-03
+
+**Done:** NestedRIC wired end to end (CMS + nested levels + deep optimizer +
+self-modification) and measured against every implemented baseline on the two streams
+that forget.
+
+**Numbers:** `results/runs/day7/`, 2 seeds. cross-dataset, all memory methods at 4 MB:
+
+| method | mechanism | BWT | avg perf |
+|---|---|---|---|
+| finetune | -- | -0.0266 | -0.0698 |
+| titans | memory, no tiering | -0.0263 | -0.0695 |
+| bilevel | tiering, no memory | -0.0297 | -0.0728 |
+| **nestedric** | both | **-0.0052** | -0.0738 |
+| replay | reservoir buffer | -0.0053 | -0.0528 |
+
+slice-shift: nestedric BWT +0.0054 (mildly positive backward transfer), replay -0.0023.
+
+**The finding.** Neither component alone helps: titans and bilevel are
+indistinguishable from finetune. Together they reduce |BWT| fivefold. The effect is an
+interaction, which is the paper's claim -- separation needs something to separate, and
+the memory needs the separation.
+
+**What it does not show.** NestedRIC ties replay on retention (-0.0052 vs -0.0053) and
+is worse on average performance (-0.0738 vs -0.0528) on both streams. No claim of
+beating the state of the art is available from these numbers.
+
+**Surprises / suspected bugs (two wrong diagnoses before the right one):**
+
+1. First measurement had nestedric at avg_perf -0.0861, worse than finetune. I blamed
+   gradients discarded between slow-level firings and implemented accumulation. It
+   moved the result by 0.0001. Wrong: each level runs Adam, which is scale-invariant,
+   so discarding gradients never changed step *size*, only step *count*.
+2. Measuring the level assignment took one command and found it: 27% of parameters,
+   including the first GRU layer, sat on the slow level and took one Adam step per 32.
+   NestedRIC was underfitting its input representation, and its low BWT was partly a
+   failure to learn. Default changed to level_assignment="memory" -- the backbone
+   trains like every baseline, and only the memory gates and modulator are slow.
+   avg_perf moved -0.0862 -> -0.0738 and BWT -0.0095 -> -0.0052.
+3. Lesson recorded: measure the mechanism before theorising about it. The one-command
+   check would have skipped a whole cycle.
+
+**Decisions taken:**
+- Frequency separation lives in the memory, not in backbone weights. "depth" retained
+  as an ablation axis rather than a default.
+- Gradient accumulation kept regardless: without it the Day 10 ratio sweep would
+  confound rho with training budget.
+- Day 7 gate in docs/PLAN.md ("beats finetune on one stream") is too weak now that
+  replay clears it trivially. The bar is replay at equal bytes.
+
+**Tomorrow:** ablations (the ratio sweep is the theorem's empirical content), then the
+main benchmark at five seeds.

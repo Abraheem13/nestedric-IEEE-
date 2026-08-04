@@ -1,15 +1,31 @@
-# Day 10 ablations, run only on the two most informative streams.
+# Day 10 ablations. Every axis is a config key on the same code path as the headline
+# runs, so each cell differs from the default in exactly one respect.
+#
+# The Day 7 result these have to explain: NestedRIC reaches replay's retention
+# (BWT -0.0052 vs -0.0053) but fits worse (avg_perf -0.0738 vs -0.0528). Either the
+# memory read is costing accuracy, or the slow level is over-constraining the fit.
 name: ablation
 streams:
-  - configs/stream/traffic_shift.yaml
   - configs/stream/cross_dataset.yaml
 model: configs/model/base.yaml
 method: nestedric
 seeds: [0, 1, 2]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
 grid:
+  # The theorem's empirical content: |BWT| should fall with the separation ratio,
+  # and Proposition 2 predicts an interior optimum rather than "larger is better".
+  periods: [[1, 1], [1, 4], [1, 16], [1, 32], [1, 64], [1, 128]]
+  # Depth at fixed total bytes.
   n_levels: [1, 2, 3]
-  period_ratio: [1, 4, 16, 32, 64, 128]
-  memory.capacity: [64, 256, 512, 2048]
+  # Does the slow level need to rewrite the fast level's update rule, or is tiering
+  # sufficient on its own?
   self_modifying: [true, false]
+  # Is the associative-memory reading of momentum load-bearing, or is Adam enough?
   deep_optimizer.enabled: [true, false]
+  # The Day 7b question: does putting backbone layers on slow periods help or just
+  # underfit? Measured, not assumed.
+  level_assignment: ["memory", "depth"]
 output_dir: results/runs/ablation
