@@ -48,11 +48,21 @@ def test_separation_ratios_are_reported():
     assert ContinuumMemory(dim=DIM, periods=(1, 4, 16), capacity=4).separation_ratios == (4.0, 4.0)
 
 
-def test_periods_must_be_strictly_increasing():
-    """A stack whose slow level is not slower is one level in disguise."""
-    with pytest.raises(ValueError, match="strictly increasing"):
-        ContinuumMemory(dim=DIM, periods=(4, 4), capacity=8)
-    with pytest.raises(ValueError, match="strictly increasing"):
+def test_equal_periods_are_allowed_because_rho_one_is_the_theorem_control():
+    """rho = 1 is the degenerate single-timescale case Theorem 1 must recover.
+
+    The Day 10 ratio sweep starts at periods (1, 1); rejecting it would exclude the
+    control the bound is checked against.
+    """
+    cms = ContinuumMemory(dim=DIM, periods=(1, 1), capacity=8)
+    assert cms.separation_ratios == (1.0,)
+    k, v = _kv()
+    assert cms.write(0, k, v) == [0, 1]  # both levels fire together, as they must
+
+
+def test_decreasing_periods_are_rejected():
+    """An inverted hierarchy, where the 'slow' level updates more often, is an error."""
+    with pytest.raises(ValueError, match="non-decreasing"):
         ContinuumMemory(dim=DIM, periods=(8, 2), capacity=8)
 
 

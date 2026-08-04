@@ -145,8 +145,14 @@ class ContinuumMemory(nn.Module):
     periods
         Update periods ``(tau_0, ..., tau_{L-1})`` in optimiser steps. In the RIC
         mapping these are anchored to the near-RT (10 ms - 1 s) and non-RT (> 1 s)
-        control loops. Must be strictly increasing: a stack whose "slow" level is not
-        slower is a stack of one level wearing a disguise.
+        control loops.
+
+        Must be non-decreasing. Equal periods are explicitly allowed because
+        ``rho = 1`` is the degenerate single-timescale case Theorem 1 has to recover,
+        and the Day 10 ratio sweep starts there: forbidding it would exclude the
+        control the theory is checked against. A *decreasing* stack, where the
+        nominally slow level updates more often than the fast one, is rejected -- that
+        is an inverted hierarchy, not a degenerate one.
     capacity
         Slots per block. With a shared byte budget this is derived, not chosen.
 
@@ -163,8 +169,8 @@ class ContinuumMemory(nn.Module):
         super().__init__()
         if not periods:
             raise ValueError("a continuum memory needs at least one level")
-        if any(b <= a for a, b in zip(periods, periods[1:], strict=False)):
-            raise ValueError(f"periods must be strictly increasing, got {periods}")
+        if any(b < a for a, b in zip(periods, periods[1:], strict=False)):
+            raise ValueError(f"periods must be non-decreasing, got {periods}")
 
         self.periods = tuple(int(p) for p in periods)
         self.dim = dim
