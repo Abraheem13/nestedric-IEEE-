@@ -34,6 +34,7 @@ import numpy as np
 from scipy.stats import wasserstein_distance
 
 from nestedric.data.loaders import Normaliser, build_windows
+from nestedric.utils.seeding import derive_seed
 
 #: Windows sampled per environment for the drift probes. The estimates are stable well
 #: below the full environment and this keeps the whole sweep to a few minutes.
@@ -189,6 +190,70 @@ def estimate_drift_rate(
     return records
 
 
-def inject_drift(stream, magnitude: float, kind: str = "traffic_scale", seed: int = 0):
-    """Return a copy of *stream* with synthetic drift of controlled magnitude."""
-    raise NotImplementedError("Day 10")
+def concept_drift_operator(env_index: int, n_features: int, n_targets: int, seed: int):
+    """A fixed random linear map from inputs to a target perturbation, per environment.
+
+    Each environment gets its own operator, so consecutive environments disagree about
+    the input-to-target mapping by an amount the magnitude controls. Deterministic in
+    ``(seed, env_index)``, so a drift sweep is reproducible and the same environment
+    receives the same perturbation at every magnitude -- which is what makes the sweep a
+    sweep rather than a set of unrelated experiments.
+    """
+    rng = np.random.default_rng(derive_seed(seed, "drift", env_index))
+    w = rng.standard_normal((n_features, n_targets))
+    return w / (np.linalg.norm(w, axis=0, keepdims=True) + 1e-12)
+
+
+def inject_drift(
+    windows,
+    env_index: int,
+    magnitude: float,
+    kind: str = "concept",
+    seed: int = 0,
+):
+    """Return *windows* with synthetic drift of controlled magnitude applied.
+
+    Day 10 measured no effect of the separation ratio on real traces: |BWT| spans 0.003
+    across rho from 1 to 128. One reading is that the mechanism does not work; another
+    is that these traces do not drift enough for it to matter. The two are distinguished
+    by adding drift under our own control and asking at what magnitude, if any,
+    separation begins to pay -- which is what turns a null into a threshold.
+
+    ``kind="concept"`` perturbs the target given the input, environment by environment:
+
+        y' = y + magnitude * (x_last @ W_i)
+
+    with W_i fixed per environment and column-normalised, so *magnitude* is
+    interpretable in units of target standard deviation. This is concept drift by
+    construction: the inputs are untouched and only the mapping moves, which is the kind
+    of shift the Day 4 measurements associated with forgetting.
+
+    ``kind="covariate"`` shifts the inputs instead, leaving the mapping intact -- the
+    control condition. Day 4 found covariate shift does not cause forgetting, so this
+    arm should show no benefit from separation at any magnitude, and if it does, the
+    experiment is measuring something other than what it claims.
+    """
+    from nestedric.data.loaders import WindowSet
+
+    if magnitude == 0.0:
+        return windows
+    if not len(windows):
+        return windows
+
+    x = windows.x.copy()
+    y = windows.y.copy()
+
+    if kind == "concept":
+        # The last timestep, features only -- the missingness channel is excluded so the
+        # perturbation cannot be read off a column the model treats as metadata.
+        driver = windows.x[:, -1, :-1]
+        w = concept_drift_operator(env_index, driver.shape[1], y.shape[1], seed)
+        y = y + magnitude * (driver @ w).astype(y.dtype)
+    elif kind == "covariate":
+        rng = np.random.default_rng(derive_seed(seed, "covariate", env_index))
+        shift = rng.standard_normal(x.shape[2] - 1).astype(x.dtype)
+        x[:, :, :-1] = x[:, :, :-1] + magnitude * shift
+    else:
+        raise ValueError(f"unknown drift kind {kind!r}; use 'concept' or 'covariate'")
+
+    return WindowSet(x=x, y=y, actions=windows.actions, trace_index=windows.trace_index)

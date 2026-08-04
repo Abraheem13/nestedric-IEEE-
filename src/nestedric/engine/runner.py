@@ -15,6 +15,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from nestedric.data.drift import inject_drift
 from nestedric.data.loaders import build_windows, fit_normaliser
 from nestedric.data.schema import FEATURE_COLUMNS
 from nestedric.data.stream import build_stream
@@ -157,10 +158,21 @@ def _run_experiment_locked(cfg: dict, out_dir: Path) -> Path:
     stride = int(cfg.get("stride", 8))
     batch_size = int(method_cfg.get("batch_size", 256))
 
+    drift_cfg = cfg.get("drift") or {}
+    drift_magnitude = float(drift_cfg.get("magnitude", 0.0))
+    drift_kind = str(drift_cfg.get("kind", "concept"))
+
     train_loaders, eval_loaders, window_counts = {}, {}, {}
-    for env in stream:
+    for env_index, env in enumerate(stream):
         tr = build_windows(env, processed, normaliser, env.train_traces, window, stride)
         ev = build_windows(env, processed, normaliser, env.eval_traces, window, stride)
+
+        if drift_magnitude:
+            # Applied to train and eval alike: the environment's mapping has changed, and
+            # evaluating against the undrifted target would score the model on a task it
+            # was never shown.
+            tr = inject_drift(tr, env_index, drift_magnitude, drift_kind, seed=0)
+            ev = inject_drift(ev, env_index, drift_magnitude, drift_kind, seed=0)
         train_loaders[env.env_id] = _make_loader(tr, batch_size, True, seed)
         eval_loaders[env.env_id] = _make_loader(ev, batch_size, False, seed)
         window_counts[env.env_id] = {"train": len(tr), "eval": len(ev)}
@@ -192,6 +204,7 @@ def _run_experiment_locked(cfg: dict, out_dir: Path) -> Path:
             "device": device,
             "wall_seconds": time.time() - t0,
             "window_counts": window_counts,
+            "drift": {"magnitude": drift_magnitude, "kind": drift_kind},
             "normaliser": normaliser.to_dict(),
             "environments": [
                 {
@@ -288,5 +301,53 @@ def run_ablation(cfg: dict, out_dir: Path) -> list[Path]:
                         "ablation_value": value,
                     }
                     print(f"==> {stream_name} / {label} / seed {seed}")
+                    written.append(run_experiment(one, run_dir))
+    return written
+
+
+def run_drift_sweep(cfg: dict, out_dir: Path) -> list[Path]:
+    """Cross drift magnitude with the separation ratio.
+
+    The question Day 10 left open: does frequency separation pay once drift is large
+    enough? Each magnitude is run at every ratio, so the comparison at a given drift
+    level is paired across ratios by construction, and the baselines are run at every
+    magnitude too -- without them a rising |BWT| could not be attributed to the drift
+    rather than to the method.
+    """
+    from nestedric.utils.config import apply_config_overrides, load_config
+
+    stream_path = cfg["stream"]
+    magnitudes = cfg.get("drift", {}).get("magnitudes", [0.0])
+    kind = cfg.get("drift", {}).get("kind", "concept")
+    ratios = cfg.get("ratios", [32])
+    seeds = cfg.get("seeds", [0])
+
+    written: list[Path] = []
+    for magnitude in magnitudes:
+        for method_name in cfg.get("methods", ["nestedric"]):
+            base = load_config(f"configs/method/{method_name}.yaml")
+            # Only the proposed method has a ratio to vary; baselines run once per
+            # magnitude, which is what makes them a reference rather than a sweep.
+            method_ratios = ratios if method_name == "nestedric" else [None]
+            for ratio in method_ratios:
+                method_cfg = base
+                label = f"m{magnitude}"
+                if ratio is not None:
+                    method_cfg = apply_config_overrides(base, {"periods": [1, int(ratio)]})
+                    label = f"{label}_rho{ratio}"
+                for seed in seeds:
+                    run_dir = out_dir / method_name / label / f"seed{seed}"
+                    if (run_dir / "results.json").exists():
+                        written.append(run_dir / "results.json")
+                        continue
+                    one = {
+                        **cfg,
+                        "stream": stream_path,
+                        "method": method_cfg,
+                        "method_name": method_name,
+                        "seed": seed,
+                        "drift": {"magnitude": magnitude, "kind": kind},
+                    }
+                    print(f"==> {method_name} / {label} / seed {seed}")
                     written.append(run_experiment(one, run_dir))
     return written

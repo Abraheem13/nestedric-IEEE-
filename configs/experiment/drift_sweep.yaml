@@ -1,13 +1,26 @@
-# Contingency (Day 10): controlled non-stationarity if public traces drift too little.
+# The paper's central experiment after Day 10.
+#
+# Day 10 found no effect of the separation ratio on real traces: |BWT| spans 0.003
+# across rho from 1 to 128. That has two readings -- the mechanism does not work, or
+# these traces do not drift enough for it to matter -- and only controlled drift
+# separates them.
+#
+# Concept drift is injected at increasing magnitude and crossed with the separation
+# ratio. If separation pays above some threshold delta*, the sweep finds it and the
+# paper reports where the mechanism starts to work and how far real O-RAN traces sit
+# below that point. If no magnitude produces a benefit, the negative result is much
+# stronger than Day 10 alone could make it.
 name: drift_sweep
-stream: configs/stream/traffic_shift.yaml
+stream: configs/stream/cross_dataset.yaml
 model: configs/model/base.yaml
-methods: [finetune, ewc, replay, titans, nestedric]
+methods: [nestedric, finetune, replay]
 seeds: [0, 1, 2]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
 drift:
-  kind: traffic_scale
-  magnitudes: [0.0, 0.25, 0.5, 1.0, 2.0]
+  kind: concept          # 'covariate' is the control arm: Day 4 says it should do nothing
+  magnitudes: [0.0, 0.25, 0.5, 1.0, 2.0, 4.0]
+ratios: [1, 32]          # rho = 1 is the single-timescale control the theorem must recover
 output_dir: results/runs/drift_sweep
-note: |
-  Doubles as the empirical test of the frequency-separation bound: it traces
-  |BWT| against drift rate at several separation ratios.
