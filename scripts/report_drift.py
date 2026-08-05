@@ -123,7 +123,32 @@ def main() -> int:
     # not about the effects. Say so, loudly, next to the numbers it disqualifies.
     n_folds = int(df[df.method == "nestedric"].groupby(["magnitude", "rho"]).size().min())
     p_floor = 2 / (2**n_folds + 1)
-    print(f"\n  n_folds = {n_folds}; smallest attainable permutation p = {p_floor:.3f}")
+    print(f"\n  n_folds = {n_folds}; smallest attainable permutation p = {p_floor:.4f}")
+
+    # Four magnitudes is four comparisons. Holm requires the smallest p to clear
+    # alpha/m, and if the permutation floor is above that threshold no result can
+    # survive correction whatever the effects are -- a fact about the design, not the
+    # data, and one a reviewer will notice before we do.
+    from nestedric.utils.stats import holm_bonferroni
+
+    raw = {str(r["magnitude"]): float(r["p"]) for r in rows}
+    decisions = holm_bonferroni(raw, alpha=0.05)
+    m = len(raw)
+    print(f"  Holm across {m} magnitudes: strictest threshold = {0.05 / m:.4f}")
+    for magnitude, survived in decisions.items():
+        print(
+            f"    magnitude {magnitude:<6} p = {raw[magnitude]:.4f}  "
+            f"{'survives' if survived else 'does NOT survive'} correction"
+        )
+    if p_floor > 0.05 / m:
+        needed = 1
+        while 2 / (2**needed + 1) > 0.05 / m:
+            needed += 1
+        print(
+            f"\n  !! The floor ({p_floor:.4f}) exceeds the Holm threshold ({0.05 / m:.4f}).\n"
+            f"     No result can survive correction at {n_folds} folds regardless of effect\n"
+            f"     size. {needed} seeds would be required."
+        )
     if p_floor > 0.05:
         print(
             "  !! No p-value below 0.05 is REACHABLE at this seed count. The CIs above\n"
