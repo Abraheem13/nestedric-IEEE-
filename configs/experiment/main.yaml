@@ -1,18 +1,24 @@
-# Main benchmark: all methods x all streams x 5 seeds.
+# The main benchmark: every method on every measured stream, five seeds.
+#
+# traffic-shift is absent: it sources TRACTOR, which Day 1 moved off the critical path.
+# The five streams here are the ones with prepared data, and four of them have been
+# measured already -- two forget, two do not, and both nulls are reported.
 name: main
 streams:
-  - configs/stream/radio_shift.yaml
-  - configs/stream/slice_shift.yaml
-  - configs/stream/traffic_shift.yaml
-  - configs/stream/sched_shift.yaml
-  - configs/stream/cross_dataset.yaml
-  - configs/stream/cyclic.yaml
+  - configs/stream/cross_dataset.yaml   # forgets most: PRB budget changes across testbeds
+  - configs/stream/slice_shift.yaml     # forgets: RBG allocation changes
+  - configs/stream/radio_shift.yaml     # null: distance and mobility
+  - configs/stream/sched_shift.yaml     # null: scheduling discipline
+  - configs/stream/cyclic.yaml          # environments recur; measures retention directly
 model: configs/model/base.yaml
-methods: [finetune, ewc, si, replay, agem, lwf, bilevel, titans, nestedric, joint]
+methods: [finetune, joint, ewc, si, replay, agem, lwf, bilevel, titans, nestedric]
 seeds: [0, 1, 2, 3, 4]
-metrics: [avg_performance, bwt, fwt, forgetting, adaptation_latency, footprint]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
 statistics:
-  unit_of_analysis: stream     # NOT the sample: environments are correlated
+  unit_of_analysis: fold     # (stream, seed); never the sample
   bootstrap: 10000
   correction: holm-bonferroni
 output_dir: results/runs/main

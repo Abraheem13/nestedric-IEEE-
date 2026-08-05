@@ -1,0 +1,28 @@
+# An out-of-sample test of Proposition 2.
+#
+# The bound's constants are pinned by requiring the rho = 32 crossover to fall between
+# delta = 0.5 and 1.0, which is what the drift sweep measured. That pinning then FORCES
+# predictions nothing in the fitted data speaks to:
+#
+#     rho*(delta = 0.25) is about 9-11   -> rho = 8 and 16 should beat rho = 32
+#     rho*(delta = 1.00) is about 4-5    -> rho = 4 should beat rho = 32
+#
+# Confirming these would make Proposition 2 a tested prediction rather than a curve
+# fitted to three points. Refuting them falsifies the functional form, which is worth
+# knowing before it goes into a paper as a theorem.
+#
+# Intermediate ratios only: 1 and 32 are already measured at these magnitudes.
+name: theory_test
+stream: configs/stream/cross_dataset.yaml
+model: configs/model/base.yaml
+methods: [nestedric]
+seeds: [0, 1, 2, 3, 4, 5, 6]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+drift:
+  kind: concept
+  magnitudes: [0.25, 1.0]
+ratios: [4, 8, 16]
+output_dir: results/runs/theory_test
