@@ -154,3 +154,53 @@ def test_summary_reports_what_the_theory_needs():
     assert s["writes"] == [1, 1]
     assert 0.0 < s["occupancy"][0] <= 1.0
     assert s["state_bytes"] > 0
+
+
+def test_batched_write_matches_the_sequential_semantics():
+    """Vectorising the write must not change what the memory ends up holding.
+
+    Written after the loop version was replaced for speed: the guarantee that matters is
+    that a batch of identical items moves a slot by write_rate toward them, exactly as
+    the sequential version's mean behaviour did, rather than write_rate per item.
+    """
+    block = AssociativeMemoryBlock(dim=4, capacity=2, update_period=1, write_rate=0.5)
+
+    block.write(torch.ones(2, 4), torch.ones(2, 4))  # claim both empty slots
+    before = block.keys.clone()
+
+    # Four copies of the same key: they all select the same slot and should pull it by
+    # write_rate in total, not 4 x write_rate.
+    target = torch.full((4, 4), 3.0)
+    block.write(target, torch.zeros(4, 4))
+
+    moved = (block.keys - before).abs().max().item()
+    expected = 0.5 * (3.0 - 1.0)
+    assert moved == pytest.approx(expected, rel=0.05)
+
+
+def test_write_is_independent_of_batch_order():
+    """Order dependence would make results depend on shuffling, not on the data."""
+    a = AssociativeMemoryBlock(dim=4, capacity=3, update_period=1, write_rate=0.3)
+    b = AssociativeMemoryBlock(dim=4, capacity=3, update_period=1, write_rate=0.3)
+
+    keys, values = _kv(n=6, dim=4, seed=3)
+    perm = torch.tensor([5, 0, 3, 1, 4, 2])
+
+    a.write(keys, values)
+    b.write(keys[perm], values[perm])
+
+    # Slot assignment during the initial fill follows arrival order, so compare the
+    # multiset of stored content rather than slot-by-slot.
+    assert torch.allclose(a.keys.sum(dim=0), b.keys.sum(dim=0), atol=1e-5)
+
+
+def test_write_scales_to_a_realistic_batch_and_capacity():
+    """The configuration the benchmark actually runs: 256 items, 4 MB of slots."""
+    from nestedric.models.cms import capacity_for_budget
+
+    cap = capacity_for_budget(4_000_000, dim=128, value_dim=128, n_levels=2)
+    block = AssociativeMemoryBlock(dim=128, capacity=cap, update_period=1)
+    k, v = _kv(n=256, dim=128, seed=4)
+    block.write(k, v)
+    assert int(block.writes.item()) == 1
+    assert (block.usage > 0).sum() > 0
