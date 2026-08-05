@@ -324,3 +324,57 @@ not survive either.
 **Tomorrow:** drift injection -- does frequency separation help once drift is large
 enough? That is the sharper question the plan anticipated, and it is now the paper's
 central experiment rather than a contingency.
+
+---
+
+## Day 11 - 2026-08-03
+
+**Done:** Drift sweep at seven seeds, and an out-of-sample test of Proposition 2.
+
+**Drift sweep (7 seeds, cross-dataset, concept drift):**
+
+| magnitude | rho=1 | rho=32 | difference | CI | p |
+|---|---|---|---|---|---|
+| 0.00 | -0.0097 | -0.0120 | -0.0023 | [-0.0028, -0.0018] | 0.016 |
+| 0.25 | -0.1855 | -0.1774 | +0.0081 | [+0.0033, +0.0126] | 0.049 |
+| 0.50 | -1.0622 | -0.9815 | +0.0806 | [+0.0367, +0.1297] | 0.032 |
+| 1.00 | -4.3476 | -4.6374 | -0.2898 | [-0.4682, -0.0995] | 0.048 |
+
+Separation helps in a window (0.25-0.50) and hurts outside it, on both sides. At zero
+drift -- the regime real O-RAN traces occupy -- it is significantly *harmful*, though by
+0.0023, which is negligible in practice.
+
+**Proposition 2, tested out of sample.** Constants fitted on rho in {1, 32} only; ratios
+4, 8, 16 held out and predicted.
+
+| delta | predicted rho* | measured best rho | verdict |
+|---|---|---|---|
+| 0.25 | 10.3 | 8 | confirmed |
+| 1.00 | 5.2 | 1 | missed |
+
+**REFUTED** by the rule fixed before the numbers were read. The qualitative claim
+survives -- rho* decreases with drift, 8 at delta=0.25 and 1 at delta=1.0 -- but the
+functional form rho* = sqrt(C_r / (C_a delta)) predicts a factor-2 decrease over that
+range where the data show a factor of 8. The delta^(-1/2) scaling is too shallow.
+
+**Surprises / process failure:**
+
+The first version of report_theory.py called optimal_ratio with DEFAULT_CONSTS, which
+are placeholders (all 1.0), and predicted rho*(0.25) = 2.0 against theory_test.yaml's
+stated 9-11. The verdict flipped when the fit was added: MISSED became CONFIRMED at
+delta = 0.25.
+
+Recorded plainly because the sequence matters: the bug was found *because* the result
+was unfavourable. The fix is correct on its own terms -- the config always specified
+fitted constants -- but it would not have been looked for as hard had the first answer
+been the desired one. The report now prints both verdicts, and the paper states the
+procedure including this correction.
+
+**Decisions taken:**
+- Proposition 2 is reported as refuted in its stated form, with the qualitative
+  monotonicity retained as the surviving claim and the observed scaling reported
+  alongside. The exponent is not re-fitted to rescue it.
+- Effect sizes are reported next to every significance claim. The confirmed cell at
+  delta = 0.25 is a 0.7% difference in BWT: significant, and not worth deploying for.
+
+**Tomorrow:** main benchmark at five seeds (running), then figures and manuscript.
