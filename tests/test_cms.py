@@ -178,20 +178,27 @@ def test_batched_write_matches_the_sequential_semantics():
     assert moved == pytest.approx(expected, rel=0.05)
 
 
-def test_write_is_independent_of_batch_order():
-    """Order dependence would make results depend on shuffling, not on the data."""
+def test_blending_is_independent_of_batch_order():
+    """Once slots are occupied, shuffling a batch must not change the result.
+
+    Only the blend phase carries this guarantee. Claiming *empty* slots is
+    order-dependent by design -- the first arrivals take them -- so the memory is
+    pre-filled here before the property is tested. Asserting order independence across
+    the fill phase would be asserting something the design does not promise.
+    """
+    seed_keys, seed_values = _kv(n=3, dim=4, seed=9)
     a = AssociativeMemoryBlock(dim=4, capacity=3, update_period=1, write_rate=0.3)
     b = AssociativeMemoryBlock(dim=4, capacity=3, update_period=1, write_rate=0.3)
+    a.write(seed_keys, seed_values)
+    b.write(seed_keys, seed_values)
 
     keys, values = _kv(n=6, dim=4, seed=3)
     perm = torch.tensor([5, 0, 3, 1, 4, 2])
-
     a.write(keys, values)
     b.write(keys[perm], values[perm])
 
-    # Slot assignment during the initial fill follows arrival order, so compare the
-    # multiset of stored content rather than slot-by-slot.
-    assert torch.allclose(a.keys.sum(dim=0), b.keys.sum(dim=0), atol=1e-5)
+    assert torch.allclose(a.keys, b.keys, atol=1e-5)
+    assert torch.allclose(a.values, b.values, atol=1e-5)
 
 
 def test_write_scales_to_a_realistic_batch_and_capacity():
