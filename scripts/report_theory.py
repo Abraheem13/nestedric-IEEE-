@@ -29,7 +29,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from nestedric.theory.bound import optimal_ratio  # noqa: E402
+from nestedric.theory.bound import fit_constants, optimal_ratio  # noqa: E402
 from nestedric.utils.stats import (
     bootstrap_ci,
     paired_bootstrap_ci,
@@ -73,13 +73,34 @@ def main() -> int:
     pd.set_option("display.width", 200)
     out_rows = []
 
+    # Constants are fitted on the FITTING SET only: the ratios measured before the
+    # theory test existed (rho = 1 and 32). The held-out ratios 4, 8 and 16 are then
+    # predicted, which is what makes this out-of-sample.
+    #
+    # This fit was missing from the first version of this script, which used the
+    # unfitted placeholders C_r = C_a = C_n = 1 and so predicted rho*(0.25) = 2.0. That
+    # was an error in the report, not a modelling choice, and it is corrected here
+    # rather than quietly: both verdicts are printed below.
+    fit_set = df[df.rho.isin([1, 32])]
+    consts = fit_constants(
+        drift=fit_set.magnitude.to_numpy(),
+        ratios=fit_set.rho.to_numpy(),
+        measured_bwt=np.abs(fit_set.bwt.to_numpy()),
+    )
+    print(
+        f"constants fitted on rho in (1, 32) only: "
+        f"C_r={consts['C_r']:.4g}, C_a={consts['C_a']:.4g}, C_n={consts['C_n']:.4g}"
+    )
+    print(f"held-out ratios: {sorted(set(df.rho) - {1, 32})}")
+
     for magnitude in sorted(df.magnitude.unique()):
         cell = df[df.magnitude == magnitude]
         ratios = sorted(cell.rho.unique())
         if len(ratios) < 3:
             continue
 
-        predicted = optimal_ratio(magnitude)
+        predicted = optimal_ratio(magnitude, consts)
+        predicted_default = optimal_ratio(magnitude)
         print(
             f"\n{'=' * 84}\ndrift magnitude {magnitude}   "
             f"Proposition 2 predicts rho* = {predicted:.1f}\n{'=' * 84}"
