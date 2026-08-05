@@ -19,7 +19,7 @@ from nestedric.data.drift import inject_drift
 from nestedric.data.loaders import build_windows, fit_normaliser
 from nestedric.data.schema import FEATURE_COLUMNS
 from nestedric.data.stream import build_stream
-from nestedric.engine.trainer import ContinualTrainer
+from nestedric.engine.trainer import ContinualTrainer, Divergence
 from nestedric.eval.evaluator import ContinualEvaluator
 from nestedric.methods import build_method
 from nestedric.models.backbone import build_backbone
@@ -349,5 +349,23 @@ def run_drift_sweep(cfg: dict, out_dir: Path) -> list[Path]:
                         "drift": {"magnitude": magnitude, "kind": kind},
                     }
                     print(f"==> {method_name} / {label} / seed {seed}")
-                    written.append(run_experiment(one, run_dir))
+                    try:
+                        written.append(run_experiment(one, run_dir))
+                    except Divergence as exc:
+                        # Record and continue. A cell that will not train is a finding
+                        # about that cell; killing the remaining sweep loses every other
+                        # cell's information as well, which is a worse trade.
+                        print(f"    !! DIVERGED: {exc}")
+                        run_dir.mkdir(parents=True, exist_ok=True)
+                        (run_dir / "diverged.json").write_text(
+                            json.dumps(
+                                {
+                                    "method": method_name,
+                                    "label": label,
+                                    "seed": seed,
+                                    "reason": str(exc),
+                                },
+                                indent=2,
+                            )
+                        )
     return written

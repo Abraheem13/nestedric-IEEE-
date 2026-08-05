@@ -14,13 +14,32 @@ import time
 import numpy as np
 
 
+def _target_scale(loader) -> float:
+    """Mean-predictor MSE for a loader: the natural unit for "is this loss large?"."""
+    for batch in loader:
+        y = batch[1]
+        return float(y.var(dim=0).mean()) if len(y) > 1 else 1.0
+    return 1.0
+
+
 class Divergence(RuntimeError):
     """Training loss went non-finite or implausibly large."""
 
 
-#: A standardised-MSE loss above this is not slow learning, it is divergence. With
-#: targets standardised to roughly unit variance, predicting the mean scores ~1.0.
-MAX_PLAUSIBLE_LOSS = 100.0
+#: Divergence threshold as a multiple of what predicting the target mean would score.
+#:
+#: An absolute limit was wrong. It assumed unit-variance targets, which holds on real
+#: traces but not under injected drift: at magnitude 4 the perturbation carries variance
+#: ~16, a mean predictor scores ~17, and an early transient of 112 is ordinary rather
+#: than divergent -- yet it killed a sweep twelve cells from the end.
+#:
+#: Judging against the variance of the targets actually being fitted makes the guard
+#: mean the same thing at every drift level.
+DIVERGENCE_MULTIPLE = 100.0
+
+#: Floor, so a degenerate near-zero-variance environment cannot make the guard fire on
+#: any nonzero loss at all.
+MIN_DIVERGENCE_LIMIT = 100.0
 
 
 class ContinualTrainer:
@@ -57,6 +76,11 @@ class ContinualTrainer:
             # loader to the environment keeps that out of the trainer's signature.
             env._train_loader = loader
 
+            # What predicting the mean would cost on this environment. Computed once
+            # per environment from the loader the method is about to train on.
+            baseline = _target_scale(loader)
+            limit = max(MIN_DIVERGENCE_LIMIT, DIVERGENCE_MULTIPLE * baseline)
+
             t0 = time.time()
             losses: list[float] = []
             for _epoch in range(self.epochs):
@@ -64,16 +88,16 @@ class ContinualTrainer:
                 for batch in batches:
                     logs = self.method.observe(batch, step)
                     loss = logs["loss"]
-                    if not np.isfinite(loss) or loss > MAX_PLAUSIBLE_LOSS:
+                    if not np.isfinite(loss) or loss > limit:
                         # Fail here rather than write a results.json full of numbers
                         # that then have to be recognised as nonsense by eye. A
                         # diverged run once reported BWT = +5.90 and was summarised as
                         # "FORGETS" before anyone noticed.
                         raise Divergence(
                             f"loss {loss:.4g} at step {step} on environment "
-                            f"{env.env_id!r} (limit {MAX_PLAUSIBLE_LOSS}). Targets are "
-                            "standardised, so predicting the mean scores about 1.0. "
-                            "Check scaling before adjusting the learning rate."
+                            f"{env.env_id!r} (limit {limit:.4g} = {DIVERGENCE_MULTIPLE:g}x "
+                            f"the mean-predictor score of {baseline:.4g}). Check scaling "
+                            "before adjusting the learning rate."
                         )
                     losses.append(loss)
                     step += 1

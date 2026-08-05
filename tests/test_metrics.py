@@ -87,3 +87,35 @@ def test_evaluator_sanity_flags_a_diverged_run():
 
     ev.R = np.array([[-0.02, -0.5], [-0.06, -0.34]])  # a healthy run
     assert ev.sanity()["trustworthy"] is True
+
+
+def test_divergence_limit_scales_with_target_variance():
+    """A fixed limit assumed unit-variance targets, which injected drift breaks.
+
+    At drift magnitude 4 the perturbation carries variance ~16, so a mean predictor
+    scores ~17 and an early transient of 112 is ordinary. The absolute limit of 100
+    killed a sweep twelve cells from the end for that reason.
+    """
+    import torch
+
+    from nestedric.engine.trainer import DIVERGENCE_MULTIPLE, MIN_DIVERGENCE_LIMIT, _target_scale
+
+    wide = [(None, torch.randn(64, 2) * 4.0, None)]
+    tight = [(None, torch.randn(64, 2) * 1.0, None)]
+
+    wide_scale = _target_scale(wide)
+    tight_scale = _target_scale(tight)
+    assert wide_scale > 5 * tight_scale
+
+    wide_limit = max(MIN_DIVERGENCE_LIMIT, DIVERGENCE_MULTIPLE * wide_scale)
+    assert wide_limit > 112.0, "the drift cell that crashed the sweep must now pass"
+
+
+def test_divergence_limit_has_a_floor():
+    """A near-constant-target environment must not make every nonzero loss a failure."""
+    import torch
+
+    from nestedric.engine.trainer import DIVERGENCE_MULTIPLE, MIN_DIVERGENCE_LIMIT, _target_scale
+
+    scale = _target_scale([(None, torch.zeros(64, 2), None)])
+    assert max(MIN_DIVERGENCE_LIMIT, DIVERGENCE_MULTIPLE * scale) >= MIN_DIVERGENCE_LIMIT
