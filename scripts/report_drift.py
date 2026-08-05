@@ -117,7 +117,22 @@ def main() -> int:
     table = pd.DataFrame(rows)
     print(table.to_string(index=False))
 
+    # A paired permutation test on n folds has 2**n sign patterns, so the smallest
+    # attainable p is 2/(2**n + 1). With three seeds that is 0.22, and every p in the
+    # table above sits at that floor -- which is a statement about the test's resolution,
+    # not about the effects. Say so, loudly, next to the numbers it disqualifies.
+    n_folds = int(df[df.method == "nestedric"].groupby(["magnitude", "rho"]).size().min())
+    p_floor = 2 / (2**n_folds + 1)
+    print(f"\n  n_folds = {n_folds}; smallest attainable permutation p = {p_floor:.3f}")
+    if p_floor > 0.05:
+        print(
+            "  !! No p-value below 0.05 is REACHABLE at this seed count. The CIs above\n"
+            "     are suggestive but nothing here is statistically established. Five seeds\n"
+            "     reach 0.061, seven reach 0.015. Re-run before any claim of significance."
+        )
+
     print(f"\n{'=' * 88}\n3. THRESHOLD\n{'=' * 88}")
+    reversals = table[table.separation_helps.eq(False) & table.difference.str.startswith("-")]
     helping = table[table.separation_helps]
     if len(helping):
         first = helping.magnitude.min()
@@ -125,6 +140,17 @@ def main() -> int:
             f"  Separation first pays at drift magnitude {first}.\n"
             "  Real O-RAN traces correspond to magnitude 0 in this sweep, so the paper\n"
             f"  reports delta* = {first} and states how far the public corpora sit below it."
+        )
+        harmful = table[(table.magnitude > first) & table.difference.str.startswith("-")]
+        if len(harmful):
+            print(
+                f"\n  It REVERSES at magnitude {harmful.magnitude.min()}: separation then\n"
+                "  costs more than it buys. The benefit is a window, not a direction, and\n"
+                "  reporting only its lower edge would misdescribe the result."
+            )
+        print(
+            "\n  Note: NestedRIC is compared here against itself at a different ratio.\n"
+            "  Check the replay column before drawing any conclusion about competitiveness."
         )
     else:
         print(

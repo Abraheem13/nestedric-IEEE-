@@ -1,0 +1,23 @@
+# Seven-seed confirmation of the drift sweep.
+#
+# The three-seed sweep found separation helping at magnitude 0.25 and 0.50 and hurting
+# at 1.00, with bootstrap CIs excluding zero. But a paired permutation test on three
+# folds cannot produce a p below 0.22, so nothing there is statistically established --
+# every p in that table sat exactly at the floor.
+#
+# Seven folds bring the floor to 0.015. Magnitudes 2.0 and 4.0 are dropped: they
+# diverged, and a regime where the task is unlearnable says nothing about the mechanism.
+name: drift_confirm
+stream: configs/stream/cross_dataset.yaml
+model: configs/model/base.yaml
+methods: [nestedric, replay, finetune]
+seeds: [0, 1, 2, 3, 4, 5, 6]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+drift:
+  kind: concept
+  magnitudes: [0.0, 0.25, 0.5, 1.0]
+ratios: [1, 32]
+output_dir: results/runs/drift_confirm
