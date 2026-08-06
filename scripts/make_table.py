@@ -23,7 +23,30 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import numpy as np  # noqa: E402
+
+from nestedric.eval.evaluator import IMPLAUSIBLE_BWT  # noqa: E402
+from nestedric.eval.metrics import backward_transfer  # noqa: E402
 from nestedric.utils.stats import bootstrap_ci, compare_methods  # noqa: E402
+
+
+def _trustworthy(record: dict) -> bool:
+    """Recompute trustworthiness from the stored R matrix.
+
+    The flag inside results.json was written when the run executed, so a later
+    correction to the criterion cannot reach it. That is how nestedric stayed missing
+    from two streams after the threshold was fixed: the runs were fine, the stored
+    verdict was stale, and regenerating the table changed nothing.
+
+    Recomputing from R makes the criterion a property of the analysis rather than a
+    fossil of whatever the code believed on the day the run happened.
+    """
+    R = np.asarray(record.get("R", []), dtype="float64")
+    if R.ndim != 2 or R.size == 0:
+        return bool(record.get("sanity", {}).get("trustworthy", True))
+    if not np.isfinite(R).all():
+        return False
+    return bool(backward_transfer(R) <= IMPLAUSIBLE_BWT and np.nanmin(R) >= -50.0)
 
 
 def load(run_dir: Path) -> pd.DataFrame:
@@ -45,7 +68,7 @@ def load(run_dir: Path) -> pd.DataFrame:
                 "p99_ms": fp.get("latency_p99_ms"),
                 "near_rt": r.get("near_rt_feasible"),
                 "memory_mb": fp.get("extra_state_bytes", 0) / 1e6,
-                "trustworthy": sanity.get("trustworthy", True),
+                "trustworthy": _trustworthy(r),
             }
         )
     return pd.DataFrame(rows)
