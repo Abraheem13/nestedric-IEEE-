@@ -1,0 +1,3 @@
+magnitude,predicted_rho,best_rho,nearest_grid,verdict
+0.25,10.320029084886345,8,8,CONFIRMED
+1.0,5.1600145424431725,1,4,MISSED
