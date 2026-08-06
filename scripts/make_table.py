@@ -65,6 +65,18 @@ def main() -> int:
         print(f"!! no results under {args.dir}")
         return 1
 
+    # A method missing from a stream is a fact about the pipeline, not about the
+    # method, and it must be visible rather than inferable from a short column.
+    counts = df.groupby("stream").method.nunique()
+    if counts.nunique() > 1:
+        full = int(counts.max())
+        for stream, n in counts.items():
+            if n < full:
+                missing = set(df[df.stream == counts.idxmax()].method) - set(
+                    df[df.stream == stream].method
+                )
+                print(f"!! {stream}: {n}/{full} methods present, missing {sorted(missing)}")
+
     untrustworthy = df[~df.trustworthy]
     if len(untrustworthy):
         print(f"!! {len(untrustworthy)} run(s) flagged untrustworthy; excluding them:")

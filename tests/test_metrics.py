@@ -63,6 +63,35 @@ def test_non_square_matrix_raises():
         backward_transfer(np.zeros((2, 3)))
 
 
+def test_small_positive_bwt_is_not_treated_as_divergence():
+    """On a stream with no forgetting, slight positive transfer is the right answer.
+
+    A 0.01 threshold excluded nestedric from radio-shift and sched-shift in the main
+    benchmark -- the two streams where it performs best -- while finetune itself scored
+    +0.0012 on radio-shift. The guard exists to catch +5.90 from a diverged run, which
+    is three orders of magnitude away.
+    """
+    import numpy as np
+
+    from nestedric.eval.evaluator import ContinualEvaluator
+
+    class _Stream:
+        environments = [type("E", (), {"env_id": "a"}), type("E", (), {"env_id": "b"})]
+
+        def __iter__(self):
+            return iter(self.environments)
+
+        def __len__(self):
+            return 2
+
+    ev = ContinualEvaluator(_Stream(), {})
+    ev.R = np.array([[-0.070, -0.070], [-0.068, -0.068]])  # BWT = +0.002
+    flags = ev.sanity()
+    assert flags["positive_bwt"] is True
+    assert flags["implausible_bwt"] is False
+    assert flags["trustworthy"] is True, "a null stream must not be discarded"
+
+
 def test_evaluator_sanity_flags_a_diverged_run():
     """A results file should say whether it can be believed."""
     import numpy as np
@@ -81,7 +110,7 @@ def test_evaluator_sanity_flags_a_diverged_run():
     ev = ContinualEvaluator(_Stream(), {})
     ev.R = np.array([[-60.0, -60.0], [-0.1, -0.1]])  # the sched-shift-commag shape
     flags = ev.sanity()
-    assert flags["positive_bwt"] is True
+    assert flags["implausible_bwt"] is True
     assert flags["implausible_performance"] is True
     assert flags["trustworthy"] is False
 
