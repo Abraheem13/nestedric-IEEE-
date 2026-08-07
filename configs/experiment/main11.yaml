@@ -1,0 +1,18 @@
+# The reported benchmark at eleven seeds.
+#
+# Five seeds put the paired-permutation floor at 0.065, so no comparison in the main
+# table could reach significance whatever the effect. Eleven folds bring the floor to
+# 0.001. Restricted to the two streams that exhibit forgetting: on a null stream there is
+# nothing for extra folds to resolve.
+name: main11
+streams:
+  - configs/stream/cross_dataset.yaml
+  - configs/stream/slice_shift.yaml
+model: configs/model/base.yaml
+methods: [finetune, joint, ewc, si, replay, agem, lwf, bilevel, titans, nestedric]
+seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+output_dir: results/runs/main11

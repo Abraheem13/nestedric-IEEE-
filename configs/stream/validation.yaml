@@ -1,0 +1,30 @@
+# The designated validation stream. Hyper-parameters are selected here and NOWHERE else.
+#
+# Design rule 4: never tune on a reported stream. slice-shift takes the eight largest
+# tr_config cells; this stream takes eight different ones, so no trace here appears in
+# any reported result. Same testbed, same kind of shift (RBG allocation), so a setting
+# chosen here is transferable -- but the numbers it produces never enter the paper's
+# tables.
+name: validation
+family: slice-shift
+source: [coloran]
+n_environments: 8
+order: fixed
+seed: 0
+env_min_samples: 5000
+eval_fraction: 0.2
+max_traces_per_env: 240
+trace_quality_column: sum_requested_prbs
+trace_max_missing: 0.20
+environments:
+  - {tr_config: tr20}
+  - {tr_config: tr3}
+  - {tr_config: tr7}
+  - {tr_config: tr18}
+  - {tr_config: tr22}
+  - {tr_config: tr6}
+  - {tr_config: tr14}
+  - {tr_config: tr25}
+description: |
+  Validation only. Eight tr_config cells disjoint from those slice-shift reports, so
+  tuning here cannot leak into any reported number.

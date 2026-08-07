@@ -1,0 +1,27 @@
+# Hyper-parameter selection for NestedRIC, on the validation stream only.
+#
+# The baselines run on published defaults their authors tuned. NestedRIC has run on its
+# initial configuration throughout, which is not a fair comparison in either direction --
+# it may be losing to settings rather than to mechanism. This searches the axes most
+# likely to matter, on a stream whose traces appear in no reported result.
+#
+# Whatever wins here is then run once on the reported streams. If the ranking does not
+# move, the negative result is about the mechanism and not about our tuning effort, which
+# is a materially stronger claim than the one we can make now.
+name: tune
+streams:
+  - configs/stream/validation.yaml
+model: configs/model/base.yaml
+method: nestedric
+seeds: [0, 1, 2]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+grid:
+  optimizer.lr: [0.0003, 0.001, 0.003]
+  memory.write_rate: [0.02, 0.1, 0.3]
+  policy_weight: [0.1, 0.5]
+  periods: [[1, 8], [1, 32], [1, 128]]
+  memory.read_temperature: [0.5, 1.0, 2.0]
+output_dir: results/runs/tune
