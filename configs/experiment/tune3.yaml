@@ -1,0 +1,31 @@
+# Round three: push the three axes still pinned to their edges past the point where they
+# stop improving, and check whether the best-of-each-axis actually works as one setting.
+#
+# Round two found an interior optimum for the learning rate (0.003 best on BWT, 0.01 best
+# on average performance, 0.03 clearly worse), so that axis is settled. The other three
+# are still at their edges, and all three point the same way:
+#
+#   read_temperature -> 0.1   the soft read wants to be a hard nearest-neighbour lookup
+#   write_rate       -> 0.8   the gated blend wants to be a full overwrite
+#   periods          -> rho=4 the separation wants to be no separation
+#
+# Each of those is a move toward the method's degenerate form -- toward Titans with a
+# sharper read, and away from every design choice the paper argues for. If the trend
+# continues to the boundary (temperature 0.02, write_rate 1.0, rho 1), that is a finding
+# about the mechanism, not a tuning detail, and it belongs in the paper.
+name: tune3
+streams:
+  - configs/stream/validation.yaml
+model: configs/model/base.yaml
+method: nestedric
+seeds: [0, 1, 2]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+grid:
+  memory.read_temperature: [0.02, 0.05, 0.1]
+  memory.write_rate: [0.8, 0.9, 1.0]
+  periods: [[1, 1], [1, 2], [1, 4]]
+  optimizer.lr: [0.003, 0.005, 0.01]
+output_dir: results/runs/tune3

@@ -1,0 +1,18 @@
+# Does the best-of-each-axis work as a single configuration?
+#
+# The tuning sweeps vary one axis at a time around the default, which finds each axis's
+# best in isolation. Nothing guarantees they compose: a learning rate chosen at
+# temperature 1.0 need not be right at temperature 0.05. This runs the assembled setting
+# against the default and against the two most credible alternatives, so the configuration
+# carried into the reported benchmark has been evaluated as a whole.
+name: tune_combined
+streams:
+  - configs/stream/validation.yaml
+model: configs/model/base.yaml
+methods: [nestedric]
+seeds: [0, 1, 2, 3, 4]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+output_dir: results/runs/tune_combined
