@@ -378,3 +378,40 @@ procedure including this correction.
   delta = 0.25 is a 0.7% difference in BWT: significant, and not worth deploying for.
 
 **Tomorrow:** main benchmark at five seeds (running), then figures and manuscript.
+
+---
+
+## Day 14 - 2026-08-07
+
+**Done:** Extracted average performance for the main benchmark, closing the question left
+open on Day 13.
+
+**The question.** NestedRIC posted +0.0535 backward transfer on radio-shift and +0.0433
+on sched-shift, where every other method sat within +/-0.002. Positive BWT has two
+readings -- real retention, or a model recovering from a poor start -- and only average
+performance separates them.
+
+**Answer: artefact.** NestedRIC has the worst average performance of all ten methods on
+all five streams:
+
+| stream | nestedric | best | replay |
+|---|---|---|---|
+| radio-shift | -0.0886 | -0.0696 (lwf) | -0.0794 |
+| sched-shift | -0.0677 | -0.0531 (lwf) | -0.0603 |
+| cross-dataset | -0.0782 | -0.0458 (joint) | -0.0533 |
+| slice-shift | -0.0969 | -0.0647 (agem) | -0.0714 |
+| cyclic | -0.0638 | -0.0493 (agem) | -0.0580 |
+
+Its per-environment diagonal is low, so later improvement scores as backward transfer.
+Those cells are reported as a metric artefact under poor fit, not as a strength.
+
+**Generalises beyond this method.** BWT must be read alongside average performance in
+this benchmark: a method that learns little forgets little, and BWT alone cannot
+distinguish that from retention. Added to docs/BENCHMARK.md as a reporting requirement.
+
+**The empirical picture is now closed.** NestedRIC: worst fit on every stream, fifth of
+nine on retention, 2.4x the latency of the baselines it loses to. Frequency separation:
+no effect from rho = 1 to 128, helps only inside an injected-drift window and harms on
+both sides. Proposition 2: refuted in its stated form.
+
+**Tomorrow:** manuscript prose. No measurement outstanding.

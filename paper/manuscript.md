@@ -2,7 +2,7 @@
 
 **Target venue:** IEEE Transactions on Mobile Computing
 **Status:** draft. Every number below comes from `results/tables/`; nothing is typed by hand.
-**Open item:** see §7.1 — one measurement is outstanding and one claim depends on it.
+**Open item:** none. §7.1 is resolved; see §5.2.
 
 ---
 
@@ -31,7 +31,8 @@ separation ratio from 1 to 128 moves backward transfer by 0.003 with every confi
 interval overlapping; the degenerate single-timescale case performs as well as any
 separation. Under synthetic concept drift the mechanism helps only inside a window
 (δ = 0.25–0.5) and is harmful outside it on both sides. A byte-matched reservoir buffer
-matches or beats the nested learner on every stream at a third of its inference latency.
+beats the nested learner on every stream at a third of its inference latency, and the
+nested learner has the worst average performance of all ten methods on all five streams.
 
 We also state and test a frequency-separation bound. Its qualitative prediction — that
 the risk-optimal ratio decreases with drift — holds, but the predicted δ^(−1/2) scaling
@@ -159,6 +160,11 @@ beats it with a fifth of the memory and 42% of the latency. Every method is near
 feasible (p99 well inside a 10 ms budget), so the comparison is about retention, not
 deployability.
 
+**Average performance settles the ranking.** NestedRIC is last of ten on every stream:
+-0.0782 on cross-dataset against replay's -0.0533 and the joint oracle's -0.0458, and
+-0.0969 on slice-shift against -0.0647 for the best baseline. It is not trading fit for
+retention at a favourable rate; it fits worst and retains middlingly.
+
 With five seeds the smallest attainable paired-permutation p-value is 0.065, so **no
 comparison in this table reaches significance**; the ordering and the intervals are what
 the table supports.
@@ -228,16 +234,21 @@ there is a regime where separation pays, and a larger one where it does not.*
   change in granted PRBs) because no action is logged in these traces.
 - The drift injection is synthetic and of one functional family.
 
-### 7.1 Outstanding measurement
+### 7.1 A resolved ambiguity, recorded
 
 NestedRIC reports large *positive* backward transfer on the two null streams (+0.0535 on
-radio-shift, +0.0433 on sched-shift) where every other method sits within ±0.002. This is
-either genuine positive transfer or an artefact of a model recovering from a poor start,
-and the two are distinguished by its average performance on those streams, which has not
-yet been extracted. **Fig. 2 marks these as off-scale rather than as wins, and no claim
-rests on them until this is settled.**
+radio-shift, +0.0433 on sched-shift) where every other method sits within ±0.002. We held
+that open until average performance was measured, because positive BWT has two readings:
+genuine retention, or a model recovering from a poor start.
 
-Command: `scripts/make_table.py --dir results/runs/main --metric avg_perf`.
+It is the second. NestedRIC has the worst average performance of all ten methods on all
+five streams (§5.2). Its per-environment diagonal is therefore low, and later improvement
+registers as backward transfer. We report those cells as an artefact of the metric under
+poor fit, not as a strength, and Fig. 2 marks them off-scale rather than as wins.
+
+This is also a general caution for the benchmark: **backward transfer must be read
+alongside average performance.** A method that learns little forgets little, and BWT
+alone cannot tell that apart from retention.
 
 ## 8. Reproducibility
 
