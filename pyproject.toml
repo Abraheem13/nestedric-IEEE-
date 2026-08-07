@@ -78,6 +78,10 @@ extend-ignore = [
 
 [tool.black]
 line-length = 100
+# Pinned to the project's minimum (requires-python >= 3.10) rather than left to
+# auto-detection, which inferred a version newer than the interpreter running the check
+# and made black warn that it could not verify its own output.
+target-version = ["py310"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
