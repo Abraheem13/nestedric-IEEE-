@@ -67,7 +67,8 @@ def main() -> int:
     pd.set_option("display.width", 200)
 
     print(
-        f"{'=' * 88}\n1. MANIPULATION CHECK: does injected drift actually cause forgetting?\n{'=' * 88}"
+        f"{'=' * 88}\n1. MANIPULATION CHECK: "
+        f"does injected drift actually cause forgetting?\n{'=' * 88}"
     )
     ft = (
         df[df.method == "finetune"]
@@ -91,7 +92,8 @@ def main() -> int:
     )
 
     print(
-        f"\n{'=' * 88}\n2. DOES SEPARATION PAY? rho = 32 against rho = 1 at each magnitude\n{'=' * 88}"
+        f"\n{'=' * 88}\n2. DOES SEPARATION PAY? "
+        f"rho = 32 against rho = 1 at each magnitude\n{'=' * 88}"
     )
     rows = []
     for magnitude in magnitudes:
@@ -157,7 +159,6 @@ def main() -> int:
         )
 
     print(f"\n{'=' * 88}\n3. THRESHOLD\n{'=' * 88}")
-    reversals = table[table.separation_helps.eq(False) & table.difference.str.startswith("-")]
     helping = table[table.separation_helps]
     if len(helping):
         first = helping.magnitude.min()

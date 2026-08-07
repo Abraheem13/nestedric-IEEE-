@@ -6,7 +6,7 @@ import pytest
 from nestedric.data.loaders import build_windows, fit_normaliser
 from nestedric.data.schema import FEATURE_COLUMNS, TARGET_COLUMNS
 from nestedric.data.stream import build_stream
-from tests.test_stream import corpus, _cfg  # noqa: F401  (corpus is a fixture)
+from tests.test_stream import _cfg, corpus  # noqa: F401  (corpus is a fixture)
 
 WINDOW = 8
 STRIDE = 4

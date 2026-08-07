@@ -282,7 +282,9 @@ def run_ablation(cfg: dict, out_dir: Path) -> list[Path]:
                 try:
                     method_cfg = apply_config_overrides(base_method, {axis: value})
                 except Exception as exc:  # a typo in the grid must not run 40 cells first
-                    raise KeyError(f"ablation axis {axis!r} is not a key of {method_name}: {exc}")
+                    raise KeyError(
+                        f"ablation axis {axis!r} is not a key of {method_name}: {exc}"
+                    ) from exc
 
                 label = f"{axis.replace('.', '_')}={value}".replace(" ", "")
                 for seed in seeds:

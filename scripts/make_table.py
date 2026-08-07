@@ -23,7 +23,6 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import numpy as np  # noqa: E402
 
 from nestedric.eval.evaluator import IMPLAUSIBLE_BWT  # noqa: E402
 from nestedric.eval.metrics import backward_transfer  # noqa: E402
@@ -54,7 +53,6 @@ def load(run_dir: Path) -> pd.DataFrame:
     for path in sorted(run_dir.rglob("results.json")):
         r = json.loads(path.read_text())
         fp = r.get("footprint", {})
-        sanity = r.get("sanity", {})
         rows.append(
             {
                 "stream": r.get("stream"),

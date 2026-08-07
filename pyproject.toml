@@ -53,7 +53,19 @@ ignore = ["D203", "D213"]
 # methods/base.py; repeating its docstrings per method adds noise, not information.
 # D401: several docstrings describe a returned quantity ("Steps to recover ...") where
 # imperative mood reads worse than the noun phrase.
-extend-ignore = ["D102", "D105", "D107", "D401"]
+extend-ignore = [
+  "D102", "D105", "D107", "D401",
+  # R is the T x T evaluation matrix and T the stream horizon -- the notation of the
+  # continual-learning literature this implements. F, C, M are conventional module
+  # aliases. Renaming them would make the code disagree with the papers it follows.
+  "N806", "N812",
+  # D400 demands a full stop where D415 already accepts "?" -- several docstrings here
+  # open with a question, which is the clearest summary of what the script answers.
+  "D400",
+  # Our exceptions read as conditions (Divergence, RunInProgress, TraceIdCollision)
+  # rather than as errors, which is how they are raised and caught.
+  "N818",
+]
 
 [tool.ruff.lint.per-file-ignores]
 # Test names are the documentation; requiring docstrings on every test adds noise

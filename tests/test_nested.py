@@ -300,8 +300,10 @@ def test_nestedric_is_byte_comparable_with_replay():
 
 
 def test_self_modification_head_actually_receives_gradient():
-    """Used only as an lr multiplier the gain is detached, so the modulator would
-    never train and the ablation would compare a fixed random constant against nothing.
+    """The self-modification head must receive gradient.
+
+    Used only as a learning-rate multiplier the gain is detached, so the modulator would
+    never train, and the ablation would compare a fixed random constant against nothing.
     """
     model = _model(periods=(1, 4), self_modifying=True)
     model.memory.blocks[-1].write(torch.randn(4, 16), torch.randn(4, 16))

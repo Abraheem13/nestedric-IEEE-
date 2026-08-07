@@ -77,7 +77,7 @@ def fig_which_shifts(main: pd.DataFrame, out: Path) -> None:
     rows.sort(key=lambda t: t[1])
 
     fig, ax = plt.subplots(figsize=(3.5, 2.2))
-    for i, (stream, est, low, high) in enumerate(rows):
+    for i, (_stream, est, low, high) in enumerate(rows):
         ax.barh(i, est, color=_colour(low, high), height=0.55, zorder=2)
         ax.plot([low, high], [i, i], color="black", lw=1, zorder=3)
 

@@ -228,8 +228,10 @@ def test_manifest_row_counts_agree_with_shards(corpus: Path):
 
 
 def test_shared_scenario_names_do_not_collide_across_datasets(corpus: Path):
-    """Both testbeds have a 'rome_static_medium'; grouping on scenario must still
-    produce disjoint environments rather than two claims on one set of traces.
+    """A scenario name shared by both testbeds must still give disjoint environments.
+
+    Both corpora contain a 'rome_static_medium', so grouping on scenario alone produced
+    the same spec twice and two environments claimed one set of traces.
     """
     stream = build_stream(
         _cfg(source=["coloran", "commag"], context_axes=["scenario"], eval_fraction=0.25),

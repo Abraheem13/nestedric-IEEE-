@@ -34,7 +34,7 @@ STREAMS = ["radio_shift", "sched_shift", "slice_shift"]
 
 
 def gate_bwt(gate_dir: Path) -> dict[str, float]:
-    """finetune |BWT| per stream from the gate runs, for the correlation at the end."""
+    """Finetune |BWT| per stream from the gate runs, for the correlation at the end."""
     out: dict[str, list[float]] = {}
     for path in gate_dir.rglob("results.json"):
         r = json.loads(path.read_text())

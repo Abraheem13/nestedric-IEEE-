@@ -103,7 +103,8 @@ def main() -> int:
         predicted_default = optimal_ratio(magnitude)
         print(
             f"\n{'=' * 84}\ndrift magnitude {magnitude}   "
-            f"Proposition 2 predicts rho* = {predicted:.1f}\n{'=' * 84}"
+            f"Proposition 2 predicts rho* = {predicted:.1f}   "
+            f"(unfitted placeholders would say {predicted_default:.1f})\n{'=' * 84}"
         )
 
         table = []
@@ -141,13 +142,26 @@ def main() -> int:
         verdict = "CONFIRMED" if best == nearest else "MISSED"
         print(f"  nearest grid point to the prediction: {nearest}  ->  {verdict}")
 
+        # Both verdicts are recorded. The fitted one is the pre-registered test; the
+        # unfitted one is what an earlier version of this script reported, using
+        # placeholder constants, and it reached the opposite conclusion at delta = 0.25.
+        # Changing an analysis after seeing its result has to stay auditable.
+        nearest_default = min(ratios, key=lambda r: abs(np.log(r) - np.log(predicted_default)))
+        verdict_default = "CONFIRMED" if best == nearest_default else "MISSED"
+        print(
+            f"  with unfitted placeholder constants it would read: "
+            f"rho* = {predicted_default:.1f} -> {verdict_default}"
+        )
+
         out_rows.append(
             {
                 "magnitude": magnitude,
-                "predicted_rho": predicted,
+                "predicted_rho": round(predicted, 2),
                 "best_rho": best,
                 "nearest_grid": nearest,
                 "verdict": verdict,
+                "predicted_rho_unfitted": round(predicted_default, 2),
+                "verdict_unfitted": verdict_default,
             }
         )
 

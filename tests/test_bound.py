@@ -9,10 +9,10 @@ import pytest
 
 from nestedric.theory.bound import (
     check_bound,
+    crossover_drift,
     fit_constants,
     forgetting_bound,
     optimal_ratio,
-    crossover_drift,
     ratio_is_optimal_at,
 )
 
@@ -20,7 +20,7 @@ CONSTS = {"C_r": 1.0, "C_a": 0.01, "C_n": 0.0}
 
 
 def test_bound_degenerates_to_finetune_at_ratio_one():
-    """rho = 1 is the single-timescale case the theorem must recover exactly."""
+    """Rho = 1 is the single-timescale case the theorem must recover exactly."""
     delta = 0.3
     at_one = forgetting_bound(delta, 1.0, n_eff=np.inf, consts=CONSTS)
     expected = CONSTS["C_r"] * delta + CONSTS["C_a"] * delta**2

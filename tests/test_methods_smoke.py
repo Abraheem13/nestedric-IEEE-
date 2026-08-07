@@ -133,8 +133,10 @@ def test_every_planned_method_is_registered():
 
 
 def test_memory_methods_are_byte_matched():
-    """Design rule 2: replay, A-GEM and Titans must hold the same bytes, not the same
-    nominal 'capacity'. Configured as 5,000 windows vs 512 slots they differed by 45x.
+    """Memory methods must hold the same bytes, not the same nominal capacity.
+
+    Design rule 2. Configured as 5,000 windows against 512 slots, replay and Titans
+    differed by 45x while reading as comparable numbers in a config.
     """
     budgets = {}
     for name in ("replay", "agem", "titans"):

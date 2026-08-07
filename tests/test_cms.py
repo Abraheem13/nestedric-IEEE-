@@ -6,7 +6,6 @@ slow levels retain what fast levels lose, and that the whole stack fits the same
 budget as replay.
 """
 
-import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch")
@@ -49,7 +48,7 @@ def test_separation_ratios_are_reported():
 
 
 def test_equal_periods_are_allowed_because_rho_one_is_the_theorem_control():
-    """rho = 1 is the degenerate single-timescale case Theorem 1 must recover.
+    """Rho = 1 is the degenerate single-timescale case Theorem 1 must recover.
 
     The Day 10 ratio sweep starts at periods (1, 1); rejecting it would exclude the
     control the bound is checked against.

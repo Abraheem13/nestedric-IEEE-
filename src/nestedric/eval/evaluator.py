@@ -13,7 +13,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-
 #: Backward transfer above this is divergence, not retention. The run that motivated
 #: the guard scored +5.90; genuine positive transfer on a null stream is ~+0.001.
 IMPLAUSIBLE_BWT = 0.5

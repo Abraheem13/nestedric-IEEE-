@@ -8,7 +8,6 @@ method rather than tested for by name.
 
 from __future__ import annotations
 
-import itertools
 import time
 
 import numpy as np
