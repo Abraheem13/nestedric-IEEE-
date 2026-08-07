@@ -78,10 +78,19 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", type=Path, default=Path("results/runs/main"))
     ap.add_argument("--reference", default="replay")
-    ap.add_argument("--metric", default="bwt", choices=["bwt", "avg_perf", "forgetting"])
+    ap.add_argument(
+        "--metric",
+        default="bwt",
+        choices=["bwt", "avg_perf", "forgetting", "all"],
+        help="'all' writes every metric to one table, so a single run answers "
+        "both 'does it retain' and 'does it learn' -- which have to be read "
+        "together: low forgetting is trivial to obtain by not learning.",
+    )
     ap.add_argument("--out", type=Path, default=Path("results/tables/main.csv"))
     ap.add_argument("--alpha", type=float, default=0.05)
     args = ap.parse_args()
+
+    metrics = ["bwt", "avg_perf", "forgetting"] if args.metric == "all" else [args.metric]
 
     df = load(args.dir)
     if df.empty:
@@ -109,7 +118,9 @@ def main() -> int:
     pd.set_option("display.width", 200)
     out_rows = []
 
-    for stream, part in df.groupby("stream", observed=True):
+    for metric, (stream, part) in (
+        (m, sp) for m in metrics for sp in df.groupby("stream", observed=True)
+    ):
         methods = sorted(part.method.unique())
         if args.reference not in methods:
             print(f"\n!! {stream}: reference {args.reference!r} absent, skipping comparison")
@@ -122,16 +133,13 @@ def main() -> int:
 
         scores = {
             m: np.array(
-                [
-                    float(part[(part.method == m) & (part.seed == s)][args.metric].iloc[0])
-                    for s in seeds
-                ]
+                [float(part[(part.method == m) & (part.seed == s)][metric].iloc[0]) for s in seeds]
             )
             for m in methods
         }
 
         print(
-            f"\n{'=' * 100}\n{stream}  --  {args.metric} vs {args.reference}  "
+            f"\n{'=' * 100}\n{stream}  --  {metric} vs {args.reference}  "
             f"({len(seeds)} folds)\n{'=' * 100}"
         )
 
@@ -141,7 +149,7 @@ def main() -> int:
             own = bootstrap_ci(scores[method])
             row = {
                 "method": method,
-                args.metric: own.format(),
+                metric: own.format(),
                 "memory_mb": round(part[part.method == method].memory_mb.mean(), 3),
                 "p99_ms": round(part[part.method == method].p99_ms.mean(), 2),
                 "near_rt": bool(part[part.method == method].near_rt.all()),
@@ -154,7 +162,7 @@ def main() -> int:
                 row["p"] = round(comp["p_value"], 4)
                 row["holm"] = "*" if comp.get("significant_holm") else ""
             table.append(row)
-            out_rows.append({"stream": stream, "metric": args.metric, **row})
+            out_rows.append({"stream": stream, "metric": metric, **row})
 
         print(pd.DataFrame(table).to_string(index=False))
 
