@@ -371,3 +371,50 @@ def run_drift_sweep(cfg: dict, out_dir: Path) -> list[Path]:
                             )
                         )
     return written
+
+
+def run_lr_sweep(cfg: dict, out_dir: Path) -> list[Path]:
+    """Sweep the learning rate for every method on the validation stream.
+
+    Round one of NestedRIC's tuning showed it was badly under-trained at the shared
+    default of 1e-3. Every other method inherits that same default, so the question
+    applies to all of them, and tuning only the proposed method would bias the comparison
+    in the direction that flatters it.
+    """
+    from nestedric.utils.config import apply_config_overrides, load_config
+
+    stream_path = (cfg.get("streams") or [cfg["stream"]])[0]
+    seeds = cfg.get("seeds", [0])
+    written: list[Path] = []
+
+    for method_name in cfg.get("methods", []):
+        base = load_config(f"configs/method/{method_name}.yaml")
+        for lr in cfg.get("lr_grid", [1e-3]):
+            method_cfg = apply_config_overrides(base, {"optimizer.lr": lr})
+            for seed in seeds:
+                run_dir = out_dir / method_name / f"lr{lr}" / f"seed{seed}"
+                if (run_dir / "results.json").exists():
+                    written.append(run_dir / "results.json")
+                    continue
+                one = {
+                    **cfg,
+                    "stream": stream_path,
+                    "method": method_cfg,
+                    "method_name": method_name,
+                    "seed": seed,
+                }
+                print(f"==> {method_name} / lr={lr} / seed {seed}")
+                try:
+                    written.append(run_experiment(one, run_dir))
+                except Divergence as exc:
+                    # A learning rate that diverges is a fact about that setting, and the
+                    # sweep exists to find where that boundary is.
+                    print(f"    !! DIVERGED: {exc}")
+                    run_dir.mkdir(parents=True, exist_ok=True)
+                    (run_dir / "diverged.json").write_text(
+                        json.dumps(
+                            {"method": method_name, "lr": lr, "seed": seed, "reason": str(exc)},
+                            indent=2,
+                        )
+                    )
+    return written

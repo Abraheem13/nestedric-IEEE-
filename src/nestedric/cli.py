@@ -54,6 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     add("evaluate", "recompute metrics from a run directory")
     add("ablate", "sweep one axis of the NestedRIC configuration")
     add("drift", "cross drift magnitude with the separation ratio")
+    add("lrsweep", "learning-rate search for every method, on validation")
     add("figures", "regenerate figures and tables")
 
     return parser
@@ -151,6 +152,16 @@ def _cmd_drift(cfg: dict, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_lrsweep(cfg: dict, args: argparse.Namespace) -> int:
+    """Sweep the learning rate for every method on the validation stream."""
+    from nestedric.engine.runner import run_lr_sweep
+
+    out_dir = Path(cfg.get("output_dir", "results/runs/tune_baselines"))
+    written = run_lr_sweep(cfg, out_dir)
+    print(f"\nwrote {len(written)} run(s) under {out_dir}")
+    return 0
+
+
 def _not_yet(day: str):
     """Placeholder dispatcher for sub-commands scheduled for a later day."""
 
@@ -167,6 +178,7 @@ COMMANDS = {
     "evaluate": _not_yet("Day 4"),
     "ablate": _cmd_ablate,
     "drift": _cmd_drift,
+    "lrsweep": _cmd_lrsweep,
     "figures": _not_yet("Day 13"),
 }
 

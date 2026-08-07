@@ -1,0 +1,21 @@
+# The same learning-rate search, for every baseline.
+#
+# All ten methods inherit lr = 1e-3 from finetune.yaml. Round one showed NestedRIC was
+# badly under-trained at that value, which raises the obvious question about the others.
+# Tuning only the proposed method would make the comparison unfair in the direction that
+# flatters us, and is the first thing a reviewer would object to.
+#
+# Same validation stream, same grid, same protocol. Whatever each method's best learning
+# rate turns out to be is what it runs with in the reported benchmark.
+name: tune_baselines
+streams:
+  - configs/stream/validation.yaml
+model: configs/model/base.yaml
+methods: [finetune, joint, ewc, si, replay, agem, lwf, bilevel, titans]
+seeds: [0, 1, 2]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+lr_grid: [0.0003, 0.001, 0.003, 0.01, 0.03]
+output_dir: results/runs/tune_baselines

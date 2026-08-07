@@ -1,0 +1,27 @@
+# Round two: every winner in round one sat at a grid edge, so the optimum is outside it.
+#
+#   lr               0.003  (best of 0.0003/0.001/0.003)  -> BWT -0.0054, avg_perf -0.0599
+#   write_rate       0.3    (best of 0.02/0.1/0.3)
+#   read_temperature 0.5    (best of 0.5/1.0/2.0)
+#
+# The learning-rate result is the substantial one: at the default 1e-3 the method scored
+# -0.0185 BWT and -0.0909 avg_perf, so every number reported for NestedRIC so far came
+# from an under-trained model. This round pushes each axis past its round-one winner
+# until the improvement stops.
+name: tune2
+streams:
+  - configs/stream/validation.yaml
+model: configs/model/base.yaml
+method: nestedric
+seeds: [0, 1, 2]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+grid:
+  optimizer.lr: [0.003, 0.01, 0.03]
+  memory.write_rate: [0.3, 0.5, 0.8]
+  memory.read_temperature: [0.1, 0.25, 0.5]
+  policy_weight: [0.02, 0.1]
+  periods: [[1, 4], [1, 8], [1, 16]]
+output_dir: results/runs/tune2
