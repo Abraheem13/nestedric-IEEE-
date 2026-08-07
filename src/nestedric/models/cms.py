@@ -200,6 +200,7 @@ class ContinuumMemory(nn.Module):
         capacity: int,
         value_dim: int | None = None,
         write_rate: float = 0.1,
+        read_temperature: float = 1.0,
     ) -> None:
         super().__init__()
         if not periods:
@@ -221,6 +222,7 @@ class ContinuumMemory(nn.Module):
                     # should move less per write than one written every step, or its
                     # "slowness" is only in how often it is disturbed, not in how much.
                     write_rate=write_rate / (1 + i),
+                    temperature=read_temperature,
                 )
                 for i, p in enumerate(self.periods)
             ]

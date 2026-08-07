@@ -21,6 +21,15 @@ memory:
   budget_mb: 4.0          # byte-matched against replay and titans
   dim: 128
   read_topk: 8
+  # How far a slot moves toward new content on a write. Slower levels scale this down
+  # further, so "slow" means gradual as well as infrequent.
+  write_rate: 0.1
+  # Softmax temperature on the memory read. Low sharpens toward the nearest slot, high
+  # averages across the block.
+  read_temperature: 1.0
+
+# Weight on the control-task cross-entropy relative to the forecasting MSE.
+policy_weight: 0.5
 
 # --- deep optimizer -------------------------------------------------------------
 deep_optimizer:

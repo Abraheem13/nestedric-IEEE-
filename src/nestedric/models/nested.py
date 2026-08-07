@@ -66,6 +66,7 @@ class NestedRIC(nn.Module):
         memory_budget_bytes: int = 4_000_000,
         self_modifying: bool = True,
         write_rate: float = 0.1,
+        read_temperature: float = 1.0,
         level_assignment: str = "memory",
     ) -> None:
         super().__init__()
@@ -86,6 +87,7 @@ class NestedRIC(nn.Module):
             capacity=capacity,
             value_dim=hidden,
             write_rate=write_rate,
+            read_temperature=read_temperature,
         )
 
         # Fuses the memory read back into the encoder state. Small and counted.

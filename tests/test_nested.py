@@ -456,3 +456,50 @@ def test_depth_assignment_is_still_available_as_an_ablation():
     )
     slow = model.parameter_levels[1]
     assert any(n.startswith("backbone.encoder.rnn") for n in slow)
+
+
+def test_every_tuning_axis_reaches_the_model():
+    """A knob that a config declares but the model ignores tunes nothing.
+
+    Three of the five axes in configs/experiment/tune.yaml existed only as Python
+    defaults, so the strict override rejected them; two more were accepted by the config
+    but never read by the method. Either way the sweep would have searched a space the
+    model could not see.
+    """
+    from nestedric.methods import build_method
+    from nestedric.models.backbone import build_backbone
+
+    cfg = {
+        "encoder": {"type": "gru", "hidden": 32, "n_layers": 1, "dropout": 0.0},
+        "heads": {"prediction": {"out_dim": 2}, "policy": {"n_actions": 3}},
+    }
+    method = build_method(
+        "nestedric",
+        build_backbone(cfg, in_dim=19),
+        {
+            "memory": {"budget_mb": 0.5, "write_rate": 0.3, "read_temperature": 2.0},
+            "policy_weight": 0.1,
+            "periods": [1, 8],
+            "optimizer": {"lr": 3e-4},
+        },
+    )
+    block = method.model.memory.blocks[0]
+    assert block.write_rate == pytest.approx(0.3)
+    assert block.temperature == pytest.approx(2.0)
+    assert method.policy_weight == pytest.approx(0.1)
+    assert method.model.periods == (1, 8)
+
+
+def test_tuning_axes_are_declared_in_the_shipped_config():
+    """Each axis the tuning sweep varies must be a key of configs/method/nestedric.yaml."""
+    from nestedric.utils.config import apply_config_overrides, load_config
+
+    base = load_config("configs/method/nestedric.yaml")
+    for axis in (
+        "optimizer.lr",
+        "memory.write_rate",
+        "memory.read_temperature",
+        "policy_weight",
+        "periods",
+    ):
+        apply_config_overrides(base, {axis: 1})  # raises if the key is absent
