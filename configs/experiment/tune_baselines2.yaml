@@ -1,0 +1,22 @@
+# Extend the baselines' learning-rate grid downward.
+#
+# Round one gave every baseline its best at or near the bottom of the grid: seven of nine
+# chose 0.0003, the lowest value tested, and two chose 0.001. Their optimum is therefore
+# outside the grid, exactly as NestedRIC's was -- in the opposite direction.
+#
+# NestedRIC wanted 0.003-0.01; the baselines want 0.0003 or less. That asymmetry is worth
+# reporting in its own right (the nested learner needs an order of magnitude more step
+# size to fit at all), but it also means the comparison is not yet fair: leaving the
+# baselines at a boundary they are pushing against understates them.
+name: tune_baselines2
+streams:
+  - configs/stream/validation.yaml
+model: configs/model/base.yaml
+methods: [finetune, joint, ewc, si, replay, agem, lwf, bilevel, titans]
+seeds: [0, 1, 2]
+processed_dir: data/processed
+device: auto
+stride: 8
+n_source_envs: 1
+lr_grid: [0.00003, 0.0001, 0.0003]
+output_dir: results/runs/tune_baselines2

@@ -415,3 +415,40 @@ no effect from rho = 1 to 128, helps only inside an injected-drift window and ha
 both sides. Proposition 2: refuted in its stated form.
 
 **Tomorrow:** manuscript prose. No measurement outstanding.
+
+---
+
+## Day 15 - 2026-08-07
+
+**Done:** Hyper-parameter selection on the designated validation stream, for NestedRIC
+(three rounds) and for all nine baselines (learning rate). Design rule 4 always required
+this and it had never been done: every number reported before today came from methods
+running on untuned defaults.
+
+**The learning-rate finding.** NestedRIC was badly under-trained at the shared default of
+1e-3: at 0.003 it scores BWT -0.0054 and avg_perf -0.0599, against -0.0185 and -0.0909 at
+the default. Round two found an interior optimum (0.003 on BWT, 0.01 on avg_perf, 0.03
+clearly worse).
+
+**The asymmetry.** Seven of nine baselines selected 0.0003, the lowest value tested, and
+two selected 0.001. NestedRIC wants an order of magnitude more step size than every
+method it is compared against. Both ends of that comparison were pinned to a grid
+boundary, so a second baseline sweep extends downward to 3e-5.
+
+**Divergence boundaries.** 41 of 135 baseline cells diverged, all at the high end. LwF and
+Titans degrade steeply with learning rate (LwF avg_perf -0.060 at 3e-4 to -0.272 at 3e-2);
+replay and SI are comparatively flat. Where a method's stability ends is reported rather
+than dropped.
+
+**Tuning pushes NestedRIC toward its degenerate form.** Rounds one and two moved three
+axes toward switching the mechanism off: read_temperature toward a hard nearest-neighbour
+lookup, write_rate toward a full overwrite, and the separation ratio toward rho = 1.
+Round three tests whether the trend continues to the boundary. If it does, the method's
+own honest hyper-parameter search removes the machinery the paper argues for, which is
+stronger evidence than an underperforming benchmark row.
+
+**Nothing reported yet uses tuned settings.** Every table in the paper is currently from
+untuned runs and must be regenerated after selection completes.
+
+**Next:** tune3 report, extended baseline sweep, combined-configuration check, then the
+eleven-seed benchmark with every method at its selected setting.
